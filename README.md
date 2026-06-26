@@ -2,12 +2,13 @@
 
 > A self-hostable AI agent platform that securely connects employees to their internal knowledge, source code, email, calendar, and operational tools — built on the **Model Context Protocol (MCP)**.
 
-![tests](https://github.com/akarshanamachanpally/sentinel-ai/actions/workflows/test.yml/badge.svg)
+![tests](https://github.com/virinchisai/sentinel-ai/actions/workflows/test.yml/badge.svg)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![next](https://img.shields.io/badge/next.js-14-black)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 ---
+
 
 ## What is SentinelAI?
 
