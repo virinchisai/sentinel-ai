@@ -1,0 +1,6 @@
+{"id": "pto-1", "prompt": "How many PTO days do full-time employees accrue per year?", "expected_tool": "query_knowledge_base", "expected_keywords": ["15", "PTO"]}
+{"id": "expense-1", "prompt": "Within how many days must I file an expense report?", "expected_tool": "query_knowledge_base", "expected_keywords": ["30 days"]}
+{"id": "onboarding-1", "prompt": "How soon does IT access get provisioned for a new hire?", "expected_tool": "query_knowledge_base", "expected_keywords": ["24 hours"]}
+{"id": "incident-1", "prompt": "When is a postmortem required after a SEV1 incident?", "expected_tool": "query_knowledge_base", "expected_keywords": ["5 business days"]}
+{"id": "github-1", "prompt": "Search GitHub issues in octocat/Hello-World for anything mentioning 'bug'.", "expected_tool": "github_search_issues", "expected_keywords": []}
+{"id": "echo-1", "prompt": "Use the echo tool to repeat back the phrase 'pipeline ready'.", "expected_tool": "echo", "expected_keywords": ["pipeline ready"]}
