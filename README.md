@@ -104,7 +104,7 @@ GitHub   Gmail   Calendar   Files    PostgreSQL
 
 ### 1. Clone & install
 ```bash
-git clone https://github.com/akarshanamachanpally/sentinel-ai.git
+git clone https://github.com/virinchisai/sentinel-ai.git
 cd sentinel-ai
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
