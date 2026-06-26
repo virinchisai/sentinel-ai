@@ -1,105 +1,185 @@
-# Enterprise AI Assistant (MCP-based)
+# SentinelAI — Secure Enterprise AI Workspace
 
-A reference implementation of an MCP-based enterprise AI assistant, demonstrating:
+> A self-hostable AI agent platform that securely connects employees to their internal knowledge, source code, email, calendar, and operational tools — built on the **Model Context Protocol (MCP)**.
 
-- **Model Context Protocol (MCP)** — tools exposed as MCP primitives via a FastMCP server
-- **Tool calling** — provider-agnostic agent loop (Anthropic or OpenAI)
-- **Authentication** — bearer-token auth on both the MCP server and the API layer
-- **Enterprise connector** — GitHub (search issues/code, create issues, comment)
-- **Agent workflows** — multi-turn tool-calling loop via `agent/orchestrator.py`
-- **RAG** — local Chroma vector store over sample HR/eng policy docs
-- **Evaluation** — a small eval dataset scored for tool-call correctness + keyword coverage
-- **Deployment** — Docker, docker-compose, and a Fly.io config
+![tests](https://github.com/akarshanamachanpally/sentinel-ai/actions/workflows/test.yml/badge.svg)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
+![next](https://img.shields.io/badge/next.js-14-black)
+![license](https://img.shields.io/badge/license-MIT-green)
 
-See [`docs/architecture.md`](docs/architecture.md) for a diagram and rationale.
+---
 
-## Project layout
+## What is SentinelAI?
+
+Imagine one chat interface where an employee asks *"Did anyone email about last week's incident, and is there a related GitHub issue?"* — and the AI agent figures out which internal tools to query (Gmail + GitHub), runs them in parallel, and returns a single grounded answer with citations.
+
+That's SentinelAI. It's not a ChatGPT wrapper — it's the AI platform layer that companies actually need: one agent, your data, your auth, your audit trail.
+
+## Architecture
 
 ```
-mcp_server/   MCP server: tools (system/github/rag), auth middleware, GitHub connector
-agent/        LLMProvider abstraction, MCP client, orchestrator (agent loop), memory
-rag/          Chroma store, ingest script, retriever, sample enterprise docs
-api/          FastAPI app exposing POST /chat and GET /health
-eval/         Eval dataset + runner + report
-tests/        pytest suite (MCP tools, RAG retrieval, orchestrator agent loop)
-deploy/       Dockerfile, docker-compose.yml, fly.toml
+                    User
+                     │
+                     ▼
+              Next.js Frontend
+                     │
+                     ▼
+               FastAPI Gateway
+                     │
+      ┌──────────────┼───────────────┐
+      ▼              ▼               ▼
+ Authentication     RAG          Agent Engine
+ (JWT/RBAC)     (PGVector)       (Planner)
+      │              │               │
+      └──────────────┼───────────────┘
+                     ▼
+                MCP Server
+                     │
+ ┌─────────┬─────────┬─────────┬─────────┐
+ ▼         ▼         ▼         ▼         ▼
+GitHub   Gmail   Calendar   Files    PostgreSQL
 ```
 
-## Setup
+## Features
 
-Requires Python 3.11+.
+### Core AI
+- Conversational enterprise assistant with multi-turn memory (SQLite-backed, session-isolated)
+- RAG over enterprise documents (Markdown + PDF) with smart heading-aware chunking
+- Citations on every retrieved answer
+- Provider-agnostic LLM layer (swap Anthropic ↔ OpenAI via env var)
+- Multi-step planning: decomposes complex queries into sub-tasks
 
+### MCP Connectors (18 tools across 7 servers)
+| Connector | Tools |
+|---|---|
+| **GitHub** | search_issues, create_issue, comment_on_issue, search_code |
+| **Gmail** | search, get_thread, draft_reply |
+| **Calendar** | list_events, create_event, check_availability |
+| **File System** | list_files, read_file, search (sandboxed) |
+| **PostgreSQL** | query (read-only SELECT), describe_schema |
+| **Knowledge Base** | query_knowledge_base (RAG) |
+| **System** | echo, current_time |
+
+### Security
+- JWT-based authentication with access + refresh tokens
+- Role-based access control (admin / user / viewer)
+- Bcrypt password hashing
+- Audit log of every authenticated action
+- Sandboxed file system access (prevents directory escape)
+- Read-only enforcement on database queries
+- Human-approval gate on destructive actions (create_issue, send_email)
+
+### Agentic
+- Tool calling with retry + exponential backoff on failure
+- Structured tool-call traces for every conversation
+- Pluggable LLM provider abstraction
+- Stateless or stateful operation
+
+### Enterprise
+- Document ingestion (Markdown, PDF, plain text)
+- Semantic search via sentence-transformers + Chroma/PGVector
+- Document versioning by content hash
+- Connector mock-mode for demos without real OAuth
+
+### Observability
+- Structured JSON logging (structlog)
+- Prometheus metrics: request latency, tool call counts, LLM latency, RAG queries, auth events
+- Request ID propagation for distributed tracing
+- `/metrics` endpoint ready for Prometheus scraping
+
+### Evaluation
+- Eval dataset with expected tool calls and golden answers
+- Tool-call correctness scoring
+- Keyword grounding metrics
+- LLM-as-judge for answer quality
+
+### Deployment
+- Docker images for backend + frontend
+- Docker Compose for full local stack (Postgres + pgvector + Prometheus + Grafana)
+- Kubernetes manifests for production deploy
+- GitHub Actions CI runs tests on every push
+
+## Quick Start
+
+### 1. Clone & install
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/akarshanamachanpally/sentinel-ai.git
+cd sentinel-ai
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env   # fill in ANTHROPIC_API_KEY or OPENAI_API_KEY, GITHUB_TOKEN
+cd frontend && npm install && cd ..
 ```
 
-Ingest the sample knowledge base:
+### 2. Configure
+```bash
+cp .env.example .env
+# edit .env: add ANTHROPIC_API_KEY or OPENAI_API_KEY
+```
+
+### 3. Ingest sample knowledge base
+```bash
+python -m backend.rag.ingest
+```
+
+### 4. Run
+```bash
+# terminal 1: backend
+uvicorn backend.api.main:app --reload
+
+# terminal 2: frontend
+cd frontend && npm run dev
+```
+
+Visit **http://localhost:3000**, register an account, and start chatting.
+
+## Repository Tour
+
+```
+sentinel-ai/
+├── backend/
+│   ├── api/             # FastAPI gateway: chat, auth, documents, admin routes
+│   ├── auth/            # JWT, RBAC, bcrypt, audit log (SQLAlchemy)
+│   ├── agents/          # LLM provider abstraction, MCP client, orchestrator, planner
+│   ├── rag/             # Chunking, PDF parsing, Chroma / PGVector stores, retriever
+│   ├── mcp_server/      # FastMCP server with 18 tools across 7 connectors
+│   ├── observability/   # structlog, Prometheus metrics, request tracing
+│   └── tests/           # pytest suite
+├── frontend/            # Next.js 14 + Tailwind: login, chat, documents, settings
+├── evaluation/          # Eval dataset, runner, report
+├── docker/              # Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
+├── kubernetes/          # Production K8s manifests
+└── .github/workflows/   # CI runs pytest + Next.js build on every push
+```
+
+## Testing
+
+### Local
+```bash
+pytest backend/tests -v       # backend
+cd frontend && npm run build  # frontend
+```
+
+### On GitHub
+Every push and PR triggers `.github/workflows/test.yml`, which runs:
+- Backend pytest on Python 3.11 and 3.12
+- MCP server smoke test (verifies all 18 tools register)
+- Frontend lint + production build
+
+You can also click **"Run workflow"** from the [Actions tab](../../actions) to trigger a manual run.
+
+## Production Deployment
 
 ```bash
-python -m rag.ingest
+docker compose -f docker/docker-compose.yml up
 ```
 
-## Run locally
+Boots the full stack: Postgres+pgvector, FastAPI backend, Next.js frontend, Prometheus, and Grafana with pre-provisioned dashboards.
 
-```bash
-uvicorn api.main:app --reload
-```
+For Kubernetes, apply `kubernetes/*.yaml`.
 
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Authorization: Bearer dev-secret-change-me" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "How many PTO days do I get per year?"}'
-```
+## Why this matters
 
-## Run tests
+Most "AI app" portfolio projects are thin ChatGPT wrappers. SentinelAI is the entire enterprise AI platform stack — auth, RBAC, multi-tool agents, RAG with citations, observability, evaluation, deployment — built on the modern protocol (MCP) that Anthropic, OpenAI, and the broader ecosystem are converging on. It demonstrates the full skill set required for **Applied AI Engineering**, **AI Platform Engineering**, and **Forward-Deployed Engineering** roles at frontier AI companies.
 
-```bash
-pytest
-```
-
-Covers: MCP tool round-trips over stdio, RAG retrieval relevance, and the
-orchestrator's tool-calling loop against a fake LLM provider (no API key
-needed for tests).
-
-## Run the eval harness
-
-Requires a real `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in `.env`, since this
-exercises the live agent loop end-to-end:
-
-```bash
-python -m eval.run_eval
-```
-
-Scores each prompt in `eval/dataset.jsonl` on (1) whether the expected tool
-was invoked, and (2) whether the final answer contains the expected
-keywords. Results are written to `eval/results/latest.json` and printed as a
-table.
-
-## Docker
-
-```bash
-docker compose -f deploy/docker-compose.yml up --build
-```
-
-Or with Fly.io (from the project root):
-
-```bash
-fly launch --copy-config --dockerfile deploy/Dockerfile
-fly secrets set ANTHROPIC_API_KEY=... GITHUB_TOKEN=... MCP_AUTH_TOKEN=...
-fly deploy --config deploy/fly.toml
-```
-
-## Notes
-
-- The GitHub connector defaults to a public demo repo (`octocat/Hello-World`)
-  so it works without write access; pass `repo=` explicitly to target another
-  repository (a `GITHUB_TOKEN` with appropriate scopes is required for write
-  operations like creating issues/comments).
-- The MCP client launches the MCP server as a subprocess over stdio per
-  request; for higher-throughput deployments, switch to the server's
-  `streamable-http` transport (`mcp_server/server.py --http`) and keep a
-  persistent client connection instead.
+## License
+MIT

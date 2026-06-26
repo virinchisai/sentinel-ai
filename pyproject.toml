@@ -1,7 +1,7 @@
 [project]
-name = "enterprise-ai-assistant"
+name = "sentinel-ai"
 version = "0.1.0"
-description = "MCP-based enterprise AI assistant demonstrating tool calling, auth, connectors, RAG, agent workflows, and evaluation"
+description = "SentinelAI — Secure Enterprise AI Workspace. An MCP-powered platform connecting employees to internal knowledge, source code, email, calendar, and operational tools."
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.2.0",
@@ -22,6 +22,14 @@ dependencies = [
     "sentence-transformers==2.7.0",
     "huggingface_hub==0.23.4",
     "torch==2.2.2",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.20.0",
+    "structlog>=24.4.0",
+    "prometheus-client>=0.21.0",
+    "python-multipart>=0.0.12",
+    "PyMuPDF>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -34,9 +42,9 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["mcp_server", "agent", "rag", "api", "eval"]
+[tool.setuptools.packages.find]
+include = ["backend*", "evaluation*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["backend/tests"]

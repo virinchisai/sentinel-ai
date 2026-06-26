@@ -1,0 +1,75 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # lets anyone click "Run tests" from the Actions tab
+
+jobs:
+  backend-tests:
+    name: Backend (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run pytest
+        run: pytest backend/tests -v
+
+      - name: Smoke-test MCP server (list tools)
+        run: |
+          python -c "
+          import asyncio, sys
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+          async def main():
+              p = StdioServerParameters(command=sys.executable, args=['-m','backend.mcp_server.server'])
+              async with stdio_client(p) as (r,w):
+                  async with ClientSession(r,w) as s:
+                      await s.initialize()
+                      tools = (await s.list_tools()).tools
+                      print(f'OK: {len(tools)} MCP tools registered')
+                      assert len(tools) >= 18, f'Expected >=18 tools, got {len(tools)}'
+          asyncio.run(main())
+          "
+
+  frontend-build:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
