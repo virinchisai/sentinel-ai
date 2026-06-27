@@ -113,3 +113,14 @@ export async function getDocumentCount() {
   const res = await apiFetch("/documents/list");
   return res.json();
 }
+
+export interface ConnectorStatus {
+  name: string;
+  mode: "live" | "mock" | "demo" | "empty" | "no_key";
+  detail: string;
+}
+
+export async function getConnectorStatus(): Promise<ConnectorStatus[]> {
+  const res = await apiFetch("/admin/connector-status");
+  return res.json();
+}

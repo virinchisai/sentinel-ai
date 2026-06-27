@@ -3,11 +3,20 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getMe, isAuthenticated } from "@/lib/api";
+import { getConnectorStatus, getMe, isAuthenticated, type ConnectorStatus } from "@/lib/api";
+
+const MODE_STYLE: Record<ConnectorStatus["mode"], { label: string; color: string; dot: string }> = {
+  live:   { label: "Live",      color: "text-[var(--success)]", dot: "bg-[var(--success)]" },
+  demo:   { label: "Demo",      color: "text-[var(--accent)]",  dot: "bg-[var(--accent)]" },
+  mock:   { label: "Mock",      color: "text-yellow-400",       dot: "bg-yellow-400" },
+  empty:  { label: "Empty",     color: "text-[var(--muted)]",   dot: "bg-[var(--muted)]" },
+  no_key: { label: "No API Key", color: "text-[var(--danger)]", dot: "bg-[var(--danger)]" },
+};
 
 export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: number; username: string; email: string; role: string } | null>(null);
+  const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -16,6 +25,9 @@ export default function SettingsPage() {
     }
     getMe()
       .then((u) => u?.id && setUser(u))
+      .catch(() => undefined);
+    getConnectorStatus()
+      .then((s) => Array.isArray(s) && setConnectors(s))
       .catch(() => undefined);
   }, [router]);
 
@@ -49,25 +61,31 @@ export default function SettingsPage() {
           </section>
 
           <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-            <h3 className="font-semibold mb-2">Connected Tools</h3>
+            <h3 className="font-semibold mb-2">Connector Status</h3>
             <p className="text-sm text-[var(--muted)] mb-4">
-              MCP connectors available to the agent
+              Real status from the backend. Mock connectors return realistic sample data — to switch them to live, set the relevant credentials in <code className="text-xs bg-[var(--background)] px-1 rounded">.env</code>.
             </p>
-            <ul className="grid grid-cols-2 gap-2 text-sm">
-              {[
-                "GitHub",
-                "Gmail",
-                "Calendar",
-                "File System",
-                "PostgreSQL",
-                "Knowledge Base (RAG)",
-              ].map((tool) => (
-                <li key={tool} className="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg flex items-center gap-2">
-                  <span className="text-[var(--success)]">●</span>
-                  {tool}
-                </li>
-              ))}
-            </ul>
+            {connectors.length === 0 ? (
+              <div className="text-[var(--muted)] text-sm">Loading status...</div>
+            ) : (
+              <ul className="space-y-2">
+                {connectors.map((c) => {
+                  const style = MODE_STYLE[c.mode];
+                  return (
+                    <li key={c.name} className="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg flex items-start gap-3">
+                      <span className={`mt-1.5 w-2 h-2 rounded-full ${style.dot} flex-shrink-0`}></span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-medium">{c.name}</span>
+                          <span className={`text-xs uppercase tracking-wider ${style.color}`}>{style.label}</span>
+                        </div>
+                        <div className="text-xs text-[var(--muted)] mt-0.5">{c.detail}</div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
       </main>
