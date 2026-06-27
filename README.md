@@ -3,8 +3,10 @@
 > A self-hostable AI agent platform that securely connects employees to their internal knowledge, source code, email, calendar, and operational tools — built on the **Model Context Protocol (MCP)**.
 
 ![tests](https://github.com/virinchisai/sentinel-ai/actions/workflows/test.yml/badge.svg)
+![codeql](https://github.com/virinchisai/sentinel-ai/actions/workflows/codeql.yml/badge.svg)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![next](https://img.shields.io/badge/next.js-14-black)
+![security](https://img.shields.io/badge/security-policy-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 ---
@@ -73,13 +75,20 @@ GitHub   Gmail   Calendar   Files    PostgreSQL
 | **System** | echo, current_time |
 
 ### Security
-- JWT-based authentication with access + refresh tokens
-- Role-based access control (admin / user / viewer)
-- Bcrypt password hashing
-- Audit log of every authenticated action
-- Sandboxed file system access (prevents directory escape)
-- Read-only enforcement on database queries
-- Human-approval gate on destructive actions (create_issue, send_email)
+- **JWT** access + refresh tokens with cryptographic signature verification
+- **Role-based access control** (admin / user / viewer)
+- **Bcrypt** password hashing
+- **Password policy**: ≥8 chars, letter + digit/special required, common-password blocklist
+- **Rate limiting**: `/auth/login` 10/min, `/auth/register` 5/min, global 100/min per IP
+- **Token revocation** on logout (defense against stolen tokens)
+- **HTTP security headers** on every response: HSTS, CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy
+- **Sandboxed file system** access (path-traversal protection)
+- **Read-only SQL** enforcement on database queries
+- **Human-approval gate** on destructive actions (create_issue, send_email)
+- **Audit log** of every authenticated action (timestamped, IP-tracked)
+- **CodeQL SAST** scanning on every push (Python + TypeScript)
+- **Dependabot** auto-updates for outdated dependencies
+- Full vulnerability disclosure process — see **[SECURITY.md](SECURITY.md)**
 
 ### Agentic
 - Tool calling with retry + exponential backoff on failure
@@ -160,22 +169,32 @@ sentinel-ai/
 ├── evaluation/          # Eval dataset, runner, report
 ├── docker/              # Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
 ├── kubernetes/          # Production K8s manifests
-└── .github/workflows/   # CI runs pytest + Next.js build on every push
+├── .github/
+│   ├── workflows/       # test.yml + codeql.yml (SAST)
+│   └── dependabot.yml   # Weekly dep updates
+└── SECURITY.md          # Vulnerability disclosure + threat model
 ```
 
 ## Testing
 
 ### Local
 ```bash
-pytest backend/tests -v       # backend
+pytest backend/tests -v       # 20 tests including 16 security regression tests
 cd frontend && npm run build  # frontend
 ```
 
+The security suite (`backend/tests/test_security.py`) proves every protection stays on:
+- Password policy (length, common-password blocklist, character classes)
+- JWT signature verification + type-mismatch rejection
+- RBAC permission checks per role
+- SQL injection blocking (DROP / DELETE / INSERT rejected)
+- Path-traversal blocking on filesystem connector
+
 ### On GitHub
-Every push and PR triggers `.github/workflows/test.yml`, which runs:
-- Backend pytest on Python 3.11 and 3.12
-- MCP server smoke test (verifies all 18 tools register)
-- Frontend lint + production build
+Three workflows run on every push and PR:
+- **[tests](../../actions/workflows/test.yml)** — pytest on Python 3.11 + 3.12, MCP smoke test (asserts ≥18 tools register), frontend lint + build
+- **[CodeQL](../../actions/workflows/codeql.yml)** — SAST for Python + TypeScript with the security-and-quality query suite
+- **Dependabot** — weekly PRs for outdated pip / npm / GitHub Actions dependencies
 
 You can also click **"Run workflow"** from the [Actions tab](../../actions) to trigger a manual run.
 
@@ -188,6 +207,25 @@ docker compose -f docker/docker-compose.yml up
 Boots the full stack: Postgres+pgvector, FastAPI backend, Next.js frontend, Prometheus, and Grafana with pre-provisioned dashboards.
 
 For Kubernetes, apply `kubernetes/*.yaml`.
+
+## Security
+
+SentinelAI is built defense-in-depth. Every protection has a **regression test** so disabling one breaks CI.
+
+| Threat | Mitigation |
+|---|---|
+| Brute-force login | Rate limit (10/min) + bcrypt slow hash |
+| Password stuffing | Common-password blocklist + minimum entropy policy |
+| Token theft | Short access-token expiry + revocation list + HSTS |
+| XSS / Clickjacking | CSP `default-src 'none'`, `X-Frame-Options: DENY` |
+| SQL injection | Parameterized queries + SELECT-only enforcement |
+| Path traversal | Resolved-path containment in FileSystem connector |
+| Prompt injection → destructive action | Human-approval gate, audit logging |
+| Vulnerable dependencies | Dependabot weekly + CodeQL on every push |
+
+See **[SECURITY.md](SECURITY.md)** for the full threat model and the private vulnerability-reporting process.
+
+The repo's **[Security tab](../../security)** surfaces CodeQL findings, Dependabot alerts, and the published security policy.
 
 ## Why this matters
 
