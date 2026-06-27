@@ -8,3 +8,9 @@ eval/results/*.json
 *.egg-info/
 .pytest_cache/
 *.egg-info/
+*.db
+*.sqlite
+*.sqlite3
+sentinel.db
+sentinel_demo.db
+sentinel_memory.db
