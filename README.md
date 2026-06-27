@@ -9,6 +9,17 @@
 
 ---
 
+## 🚀 Try it in 30 seconds — no install needed
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/virinchisai/sentinel-ai)
+
+Click the badge above → wait ~30 sec for setup → frontend opens automatically in your browser.
+Log in with the pre-seeded demo account: **`alice`** / **`sentinel-demo`**
+
+> Codespaces gives you a full cloud VS Code with both servers running and ports forwarded.
+> Free 60 hours/month on personal GitHub accounts.
+
+---
 
 ## What is SentinelAI?
 

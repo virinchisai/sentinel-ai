@@ -1,0 +1,42 @@
+{
+  "name": "SentinelAI",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "forwardPorts": [3000, 8000],
+  "portsAttributes": {
+    "3000": {
+      "label": "SentinelAI (Frontend)",
+      "onAutoForward": "openPreview"
+    },
+    "8000": {
+      "label": "SentinelAI API (Backend)",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  },
+  "remoteEnv": {
+    "LLM_PROVIDER": "anthropic",
+    "DATABASE_URL": "sqlite:///sentinel.db",
+    "RAG_BACKEND": "chroma",
+    "MCP_AUTH_TOKEN": "dev-codespace-token"
+  }
+}
