@@ -16,6 +16,11 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db=Depends(get_db),
 ) -> User:
+    # avoid circular import: routes imports middleware
+    from backend.auth.routes import is_revoked
+
+    if is_revoked(credentials.credentials):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
     payload = verify_token(credentials.credentials)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")

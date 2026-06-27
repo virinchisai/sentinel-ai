@@ -4,9 +4,12 @@ Run locally:
     uvicorn backend.api.main:app --reload
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.responses import Response
 
 from backend.api.routes_admin import router as admin_router
@@ -15,16 +18,22 @@ from backend.api.routes_documents import router as documents_router
 from backend.auth.models import init_db
 from backend.auth.routes import router as auth_router
 from backend.observability.logging import setup_logging
+from backend.observability.security_headers import SecurityHeadersMiddleware
 from backend.observability.tracing import TracingMiddleware
 
 setup_logging()
 init_db()
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 app = FastAPI(
     title="SentinelAI",
     description="Secure Enterprise AI Workspace — MCP-powered agent platform",
     version="0.1.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +42,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(TracingMiddleware)
 
 app.include_router(auth_router)
