@@ -5,7 +5,7 @@
 ![tests](https://github.com/virinchisai/sentinel-ai/actions/workflows/test.yml/badge.svg)
 ![codeql](https://github.com/virinchisai/sentinel-ai/actions/workflows/codeql.yml/badge.svg)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![next](https://img.shields.io/badge/next.js-14-black)
+![next](https://img.shields.io/badge/next.js-15-black)
 ![security](https://img.shields.io/badge/security-policy-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -36,6 +36,7 @@ That's SentinelAI. It's not a ChatGPT wrapper — it's the AI platform layer tha
                      │
                      ▼
               Next.js Frontend
+              (/api/backend proxy)
                      │
                      ▼
                FastAPI Gateway
@@ -75,19 +76,20 @@ GitHub   Gmail   Calendar   Files    PostgreSQL
 | **System** | echo, current_time |
 
 ### Security
-- **JWT** access + refresh tokens with cryptographic signature verification
+- **HttpOnly cookie auth** with JWT access + refresh tokens and cryptographic signature verification
 - **Role-based access control** (admin / user / viewer)
 - **Bcrypt** password hashing
 - **Password policy**: ≥8 chars, letter + digit/special required, common-password blocklist
 - **Rate limiting**: `/auth/login` 10/min, `/auth/register` 5/min, global 100/min per IP
-- **Token revocation** on logout (defense against stolen tokens)
+- **Token revocation** on logout and refresh rotation (defense against stolen tokens)
 - **HTTP security headers** on every response: HSTS, CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy
 - **Sandboxed file system** access (path-traversal protection)
 - **Read-only SQL** enforcement on database queries
-- **Human-approval gate** on destructive actions (create_issue, send_email)
+- **Human-approval gate** on destructive actions (create_issue, send_email); clients cannot self-approve actions
 - **Audit log** of every authenticated action (timestamped, IP-tracked)
 - **CodeQL SAST** scanning on every push (Python + TypeScript)
 - **Dependabot** auto-updates for outdated dependencies
+- **Safe provider errors**: missing Anthropic/OpenAI keys return controlled JSON errors instead of stack traces
 - Full vulnerability disclosure process — see **[SECURITY.md](SECURITY.md)**
 
 ### Agentic
@@ -134,8 +136,10 @@ cd frontend && npm install && cd ..
 ### 2. Configure
 ```bash
 cp .env.example .env
-# edit .env: add ANTHROPIC_API_KEY or OPENAI_API_KEY
+# edit .env: add ANTHROPIC_API_KEY or OPENAI_API_KEY for live AI chat
 ```
+
+If you do not configure an LLM key, the app still boots, authentication works, and the UI returns a safe message such as `Anthropic API key is not configured` when chat is attempted.
 
 ### 3. Ingest sample knowledge base
 ```bash
@@ -153,6 +157,9 @@ cd frontend && npm run dev
 
 Visit **http://localhost:3000**, register an account, and start chatting.
 
+The frontend talks to the backend through a same-origin Next.js rewrite at `/api/backend/*`.
+Set `BACKEND_URL` if your FastAPI server is not running at `http://localhost:8000`.
+
 ## Repository Tour
 
 ```
@@ -165,7 +172,7 @@ sentinel-ai/
 │   ├── mcp_server/      # FastMCP server with 18 tools across 7 connectors
 │   ├── observability/   # structlog, Prometheus metrics, request tracing
 │   └── tests/           # pytest suite
-├── frontend/            # Next.js 14 + Tailwind: login, chat, documents, settings
+├── frontend/            # Next.js 15 + Tailwind: login, chat, documents, settings
 ├── evaluation/          # Eval dataset, runner, report
 ├── docker/              # Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
 ├── kubernetes/          # Production K8s manifests
@@ -179,16 +186,24 @@ sentinel-ai/
 
 ### Local
 ```bash
-pytest backend/tests -v       # 20 tests including 16 security regression tests
-cd frontend && npm run build  # frontend
+pytest backend/tests -v       # 22 tests including security regression tests
+cd frontend && npm run lint   # frontend lint
+cd frontend && npm run build  # production build
 ```
 
 The security suite (`backend/tests/test_security.py`) proves every protection stays on:
 - Password policy (length, common-password blocklist, character classes)
 - JWT signature verification + type-mismatch rejection
+- Logout refresh-token revocation
+- Forged websocket user rejection
 - RBAC permission checks per role
 - SQL injection blocking (DROP / DELETE / INSERT rejected)
 - Path-traversal blocking on filesystem connector
+
+Latest local verification:
+- `python -m pytest backend/tests -v` -> 22 passed
+- `npm run lint` -> passed
+- `npm run build` -> passed
 
 ### On GitHub
 Three workflows run on every push and PR:
@@ -221,6 +236,8 @@ SentinelAI is built defense-in-depth. Every protection has a **regression test**
 | SQL injection | Parameterized queries + SELECT-only enforcement |
 | Path traversal | Resolved-path containment in FileSystem connector |
 | Prompt injection → destructive action | Human-approval gate, audit logging |
+| Admin data exposure | Connector status restricted to admin/operator permissions |
+| Missing LLM provider key | Controlled `503` JSON response, no traceback in UI |
 | Vulnerable dependencies | Dependabot weekly + CodeQL on every push |
 
 See **[SECURITY.md](SECURITY.md)** for the full threat model and the private vulnerability-reporting process.

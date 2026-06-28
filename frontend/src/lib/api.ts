@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/backend";
 const AUTH_FLAG_KEY = "sentinel_authenticated";
 
 function getAuthFlag(): string | null {
@@ -41,12 +41,25 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   return res;
 }
 
+async function parseJsonResponse(res: Response) {
+  const text = await res.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      detail: res.ok ? "Unexpected empty response" : "Request failed. Please try again.",
+    };
+  }
+}
+
 export async function register(username: string, email: string, password: string) {
   const res = await apiFetch("/auth/register", {
     method: "POST",
     body: JSON.stringify({ username, email, password }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function login(username: string, password: string) {
@@ -54,7 +67,7 @@ export async function login(username: string, password: string) {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse(res);
   if (data.authenticated) {
     setAuthenticated(true);
   }
@@ -66,7 +79,7 @@ export async function getMe() {
   if (res.ok) {
     setAuthenticated(true);
   }
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export interface ChatResult {
@@ -92,7 +105,7 @@ export async function chat(
     method: "POST",
     body: JSON.stringify({ message, session_id: sessionId }),
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function uploadDocument(file: File) {
@@ -104,12 +117,12 @@ export async function uploadDocument(file: File) {
     credentials: "include",
     body: formData,
   });
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function getDocumentCount() {
   const res = await apiFetch("/documents/list");
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export interface ConnectorStatus {
@@ -120,7 +133,7 @@ export interface ConnectorStatus {
 
 export async function getConnectorStatus(): Promise<ConnectorStatus[]> {
   const res = await apiFetch("/admin/connector-status");
-  return res.json();
+  return parseJsonResponse(res);
 }
 
 export async function logout() {

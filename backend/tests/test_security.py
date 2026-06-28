@@ -48,7 +48,9 @@ def test_jwt_round_trip():
 
 def test_jwt_rejects_tampered():
     token = create_access_token({"sub": "alice"})
-    tampered = token[:-3] + "xxx"
+    header, payload, signature = token.split(".")
+    replacement = "A" if signature[0] != "A" else "B"
+    tampered = f"{header}.{payload}.{replacement}{signature[1:]}"
     assert verify_token(tampered) is None
 
 

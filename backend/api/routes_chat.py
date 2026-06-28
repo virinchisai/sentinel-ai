@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from backend.agents.orchestrator import Orchestrator
+from backend.agents.llm_provider import LLMProviderConfigurationError
 from backend.auth.jwt import verify_token
 from backend.auth.models import User, get_session_factory
 from backend.auth.middleware import require_permission
@@ -42,12 +43,15 @@ class ChatResponse(BaseModel):
 async def chat(
     req: ChatRequest, current_user: User = Depends(require_permission("chat"))
 ) -> ChatResponse:
-    result = await orchestrator.run(
-        session_id=f"{current_user.id}-{req.session_id}",
-        user_message=req.message,
-        enable_planning=req.enable_planning,
-        auto_approve=False,
-    )
+    try:
+        result = await orchestrator.run(
+            session_id=f"{current_user.id}-{req.session_id}",
+            user_message=req.message,
+            enable_planning=req.enable_planning,
+            auto_approve=False,
+        )
+    except LLMProviderConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return ChatResponse(
         reply=result.text,
         session_id=req.session_id,
