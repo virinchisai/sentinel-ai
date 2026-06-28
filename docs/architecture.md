@@ -34,7 +34,7 @@
 ## Why these choices
 
 - **MCP for tool exposure**: tools are defined once as MCP primitives and are
-  reusable by any MCP-compatible client (Claude Desktop, this agent, future
+  reusable by any MCP-compatible client (desktop assistants, this agent, future
   agents), not hard-wired into the orchestrator.
 - **Provider-agnostic LLM layer**: `LLMProvider` normalizes Anthropic's and
   OpenAI's different tool-calling formats into one `ChatResponse`/`ToolCall`
