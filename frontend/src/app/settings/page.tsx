@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getConnectorStatus, getMe, isAuthenticated, type ConnectorStatus } from "@/lib/api";
+import { getConnectorStatus, getMe, type ConnectorStatus } from "@/lib/api";
 
 const MODE_STYLE: Record<ConnectorStatus["mode"], { label: string; color: string; dot: string }> = {
   live:   { label: "Live",      color: "text-[var(--success)]", dot: "bg-[var(--success)]" },
@@ -17,18 +17,24 @@ export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: number; username: string; email: string; role: string } | null>(null);
   const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push("/login");
-      return;
-    }
     getMe()
-      .then((u) => u?.id && setUser(u))
-      .catch(() => undefined);
-    getConnectorStatus()
-      .then((s) => Array.isArray(s) && setConnectors(s))
-      .catch(() => undefined);
+      .then((u) => {
+        if (!u?.id) {
+          router.push("/login");
+          return;
+        }
+        setUser(u);
+        setAuthChecked(true);
+        if (u.role === "admin") {
+          getConnectorStatus()
+            .then((s) => Array.isArray(s) && setConnectors(s))
+            .catch(() => undefined);
+        }
+      })
+      .catch(() => router.push("/login"));
   }, [router]);
 
   return (
@@ -36,6 +42,10 @@ export default function SettingsPage() {
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto">
+        {!authChecked ? (
+          <div className="flex h-full items-center justify-center text-[var(--muted)]">Loading...</div>
+        ) : (
+          <>
         <header className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
           <h2 className="font-semibold">Settings</h2>
           <p className="text-xs text-[var(--muted)]">Account and workspace configuration</p>
@@ -60,6 +70,7 @@ export default function SettingsPage() {
             )}
           </section>
 
+          {user?.role === "admin" ? (
           <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
             <h3 className="font-semibold mb-2">Connector Status</h3>
             <p className="text-sm text-[var(--muted)] mb-4">
@@ -87,7 +98,10 @@ export default function SettingsPage() {
               </ul>
             )}
           </section>
+          ) : null}
         </div>
+          </>
+        )}
       </main>
     </div>
   );

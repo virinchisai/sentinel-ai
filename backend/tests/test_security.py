@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.auth.jwt import create_access_token, verify_token
 from backend.auth.password import PasswordError, validate_password
@@ -10,6 +13,7 @@ from backend.auth.rbac import has_permission
 from backend.auth.models import Role
 from backend.mcp_server.connectors.database_client import get_client as db_client
 from backend.mcp_server.connectors.filesystem_client import get_client as fs_client
+from backend.api.main import app
 
 
 # ─── Passwords ───
@@ -100,3 +104,32 @@ def test_fs_blocks_path_traversal():
 def test_fs_blocks_absolute_escape():
     with pytest.raises(PermissionError):
         fs_client()._safe_path("/etc/passwd")
+
+
+def test_logout_revokes_refresh_cookie():
+    client = TestClient(app)
+    username = f"logout-user-{uuid4().hex[:8]}"
+    password = "StrongP@ss123"
+    client.post("/auth/register", json={
+        "username": username,
+        "email": f"{username}@example.com",
+        "password": password,
+    })
+    login = client.post("/auth/login", json={"username": username, "password": password})
+    assert login.status_code == 200
+
+    logout = client.post("/auth/logout")
+    assert logout.status_code == 204
+
+    refresh = client.post("/auth/refresh")
+    assert refresh.status_code == 401
+
+
+def test_websocket_rejects_forged_unknown_user():
+    client = TestClient(app)
+    forged = create_access_token({"sub": "ghost-user", "role": "viewer"})
+
+    with client.websocket_connect("/ws/chat") as ws:
+        ws.send_json({"token": forged, "session_id": "audit"})
+        payload = ws.receive_json()
+        assert payload["error"] == "forbidden"

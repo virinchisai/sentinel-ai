@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearTokens, getMe } from "@/lib/api";
+import { getMe, logout as logoutRequest } from "@/lib/api";
 
 const NAV = [
   { href: "/chat", label: "Chat", icon: "💬" },
@@ -22,8 +22,8 @@ export default function Sidebar() {
       .catch(() => undefined);
   }, []);
 
-  const logout = () => {
-    clearTokens();
+  const logout = async () => {
+    await logoutRequest();
     router.push("/login");
   };
 

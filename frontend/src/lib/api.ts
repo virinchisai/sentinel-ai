@@ -1,38 +1,35 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const AUTH_FLAG_KEY = "sentinel_authenticated";
 
-function getToken(): string | null {
+function getAuthFlag(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("sentinel_token");
+  return sessionStorage.getItem(AUTH_FLAG_KEY);
 }
 
-export function setToken(token: string) {
-  localStorage.setItem("sentinel_token", token);
-}
-
-export function setRefreshToken(token: string) {
-  localStorage.setItem("sentinel_refresh_token", token);
+function setAuthenticated(value: boolean) {
+  if (typeof window === "undefined") return;
+  if (value) {
+    sessionStorage.setItem(AUTH_FLAG_KEY, "1");
+  } else {
+    sessionStorage.removeItem(AUTH_FLAG_KEY);
+  }
 }
 
 export function clearTokens() {
-  localStorage.removeItem("sentinel_token");
-  localStorage.removeItem("sentinel_refresh_token");
+  setAuthenticated(false);
 }
 
 export function isAuthenticated(): boolean {
-  return !!getToken();
+  return getAuthFlag() === "1";
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
-  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
 
   if (res.status === 401) {
     clearTokens();
@@ -58,15 +55,17 @@ export async function login(username: string, password: string) {
     body: JSON.stringify({ username, password }),
   });
   const data = await res.json();
-  if (data.access_token) {
-    setToken(data.access_token);
-    setRefreshToken(data.refresh_token);
+  if (data.authenticated) {
+    setAuthenticated(true);
   }
   return data;
 }
 
 export async function getMe() {
   const res = await apiFetch("/auth/me");
+  if (res.ok) {
+    setAuthenticated(true);
+  }
   return res.json();
 }
 
@@ -97,13 +96,12 @@ export async function chat(
 }
 
 export async function uploadDocument(file: File) {
-  const token = getToken();
   const formData = new FormData();
   formData.append("file", file);
 
   const res = await fetch(`${API_BASE}/documents/upload`, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
     body: formData,
   });
   return res.json();
@@ -123,4 +121,10 @@ export interface ConnectorStatus {
 export async function getConnectorStatus(): Promise<ConnectorStatus[]> {
   const res = await apiFetch("/admin/connector-status");
   return res.json();
+}
+
+export async function logout() {
+  const res = await apiFetch("/auth/logout", { method: "POST" });
+  clearTokens();
+  return res;
 }

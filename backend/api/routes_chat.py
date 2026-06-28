@@ -7,8 +7,9 @@ from pydantic import BaseModel
 
 from backend.agents.orchestrator import Orchestrator
 from backend.auth.jwt import verify_token
+from backend.auth.models import User, get_session_factory
 from backend.auth.middleware import require_permission
-from backend.auth.models import User
+from backend.auth.rbac import has_permission
 
 router = APIRouter(tags=["chat"])
 orchestrator = Orchestrator()
@@ -18,7 +19,6 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
     enable_planning: bool = True
-    auto_approve: bool = False
 
 
 class ToolTraceItem(BaseModel):
@@ -46,7 +46,7 @@ async def chat(
         session_id=f"{current_user.id}-{req.session_id}",
         user_message=req.message,
         enable_planning=req.enable_planning,
-        auto_approve=req.auto_approve,
+        auto_approve=False,
     )
     return ChatResponse(
         reply=result.text,
@@ -80,7 +80,25 @@ async def websocket_chat(websocket: WebSocket):
             await websocket.close()
             return
 
-        session_id = f"{payload['sub']}-ws-{init_data.get('session_id', 'default')}"
+        from backend.auth.routes import is_revoked
+
+        if is_revoked(token, payload):
+            await websocket.send_json({"error": "token_revoked"})
+            await websocket.close()
+            return
+
+        db = get_session_factory()()
+        try:
+            user = db.query(User).filter(User.username == payload.get("sub")).first()
+        finally:
+            db.close()
+
+        if not user or not has_permission(user.role, "chat"):
+            await websocket.send_json({"error": "forbidden"})
+            await websocket.close()
+            return
+
+        session_id = f"{user.id}-ws-{init_data.get('session_id', 'default')}"
         await websocket.send_json({"type": "connected", "session_id": session_id})
 
         while True:
@@ -93,7 +111,7 @@ async def websocket_chat(websocket: WebSocket):
                 session_id=session_id,
                 user_message=message,
                 enable_planning=data.get("enable_planning", True),
-                auto_approve=data.get("auto_approve", False),
+                auto_approve=False,
             )
 
             await websocket.send_json({

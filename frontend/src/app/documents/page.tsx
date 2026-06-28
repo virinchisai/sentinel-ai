@@ -3,20 +3,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getDocumentCount, isAuthenticated, uploadDocument } from "@/lib/api";
+import { getDocumentCount, getMe, uploadDocument } from "@/lib/api";
 
 export default function DocumentsPage() {
   const router = useRouter();
   const [count, setCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push("/login");
-      return;
-    }
-    refresh();
+    getMe()
+      .then((u) => {
+        if (!u?.id) {
+          router.push("/login");
+          return;
+        }
+        setAuthChecked(true);
+        refresh();
+      })
+      .catch(() => router.push("/login"));
   }, [router]);
 
   const refresh = () => {
@@ -51,6 +57,10 @@ export default function DocumentsPage() {
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto">
+        {!authChecked ? (
+          <div className="flex h-full items-center justify-center text-[var(--muted)]">Loading...</div>
+        ) : (
+          <>
         <header className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
           <h2 className="font-semibold">Knowledge Base</h2>
           <p className="text-xs text-[var(--muted)]">RAG documents indexed for semantic search</p>
@@ -96,6 +106,8 @@ export default function DocumentsPage() {
             )}
           </div>
         </div>
+          </>
+        )}
       </main>
     </div>
   );

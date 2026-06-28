@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ToolCallViewer from "@/components/ToolCallViewer";
-import { chat, isAuthenticated, type ChatResult } from "@/lib/api";
+import { chat, getMe, type ChatResult } from "@/lib/api";
 
 type Message = {
   role: "user" | "assistant" | "system";
@@ -17,11 +17,20 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [sessionId] = useState(() => `web-${Date.now()}`);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isAuthenticated()) router.push("/login");
+    getMe()
+      .then((u) => {
+        if (!u?.id) {
+          router.push("/login");
+          return;
+        }
+        setAuthChecked(true);
+      })
+      .catch(() => router.push("/login"));
   }, [router]);
 
   useEffect(() => {
@@ -71,6 +80,10 @@ export default function ChatPage() {
       <Sidebar />
 
       <main className="flex-1 flex flex-col">
+        {!authChecked ? (
+          <div className="flex-1 flex items-center justify-center text-[var(--muted)]">Loading...</div>
+        ) : (
+          <>
         <header className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
           <h2 className="font-semibold">Chat</h2>
           <p className="text-xs text-[var(--muted)]">Session {sessionId}</p>
@@ -154,6 +167,8 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+          </>
+        )}
       </main>
     </div>
   );

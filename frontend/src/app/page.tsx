@@ -2,17 +2,15 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isAuthenticated } from "@/lib/api";
+import { getMe } from "@/lib/api";
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      router.push("/chat");
-    } else {
-      router.push("/login");
-    }
+    getMe()
+      .then((u) => router.push(u?.id ? "/chat" : "/login"))
+      .catch(() => router.push("/login"));
   }, [router]);
 
   return (
