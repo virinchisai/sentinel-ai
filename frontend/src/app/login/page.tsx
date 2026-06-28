@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError("");
     try {
       const data = await login(username, password);
-      if (data.access_token) {
+      if (data.authenticated) {
         router.push("/chat");
       } else {
         setError(data.detail || "Login failed");

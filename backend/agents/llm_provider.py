@@ -28,6 +28,10 @@ class ChatResponse:
     raw_assistant_message: Any = None  # provider-native message, fed back for multi-turn tool use
 
 
+class LLMProviderConfigurationError(RuntimeError):
+    """Raised when the selected model provider cannot be used safely."""
+
+
 class LLMProvider(ABC):
     @abstractmethod
     def chat(self, messages: list[dict], tools: list[dict]) -> ChatResponse:
@@ -46,6 +50,7 @@ class AnthropicProvider(LLMProvider):
     def __init__(self) -> None:
         import anthropic
 
+        self._configured = bool(settings.anthropic_api_key)
         self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self._model = settings.anthropic_model
 
@@ -61,6 +66,8 @@ class AnthropicProvider(LLMProvider):
         ]
 
     def chat(self, messages: list[dict], tools: list[dict]) -> ChatResponse:
+        if not self._configured:
+            raise LLMProviderConfigurationError("Anthropic API key is not configured")
         resp = self._client.messages.create(
             model=self._model,
             max_tokens=1024,
@@ -100,6 +107,7 @@ class OpenAIProvider(LLMProvider):
     def __init__(self) -> None:
         import openai
 
+        self._configured = bool(settings.openai_api_key)
         self._client = openai.OpenAI(api_key=settings.openai_api_key)
         self._model = settings.openai_model
 
@@ -118,6 +126,8 @@ class OpenAIProvider(LLMProvider):
         ]
 
     def chat(self, messages: list[dict], tools: list[dict]) -> ChatResponse:
+        if not self._configured:
+            raise LLMProviderConfigurationError("OpenAI API key is not configured")
         resp = self._client.chat.completions.create(
             model=self._model,
             messages=messages,

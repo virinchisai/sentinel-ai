@@ -7,6 +7,8 @@ and without spending API tokens on embeddings.
 
 from __future__ import annotations
 
+import hashlib
+
 import chromadb
 from chromadb.utils import embedding_functions
 
@@ -15,11 +17,62 @@ from backend.config import settings
 COLLECTION_NAME = "enterprise_kb"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
-_embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name=EMBEDDING_MODEL
-)
-
 _client: chromadb.ClientAPI | None = None
+_embedding_fn = None
+
+
+class FallbackEmbeddingFunction:
+    """Cheap deterministic embedding fallback when local ML deps are unavailable."""
+
+    dimension = 64
+
+    @staticmethod
+    def name() -> str:
+        return "default"
+
+    @staticmethod
+    def is_legacy() -> bool:
+        return False
+
+    @staticmethod
+    def default_space() -> str:
+        return "cosine"
+
+    @staticmethod
+    def supported_spaces() -> list[str]:
+        return ["cosine"]
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for text in input:
+            vector = [0.0] * self.dimension
+            for token in text.lower().split():
+                digest = hashlib.sha256(token.encode("utf-8")).digest()
+                bucket = digest[0] % self.dimension
+                vector[bucket] += 1.0
+            norm = sum(v * v for v in vector) ** 0.5 or 1.0
+            vectors.append([v / norm for v in vector])
+        return vectors
+
+    def embed_documents(self, input: list[str]) -> list[list[float]]:
+        return self(input)
+
+    def embed_query(self, input: list[str]) -> list[list[float]]:
+        return self(input)
+
+
+def get_embedding_function():
+    global _embedding_fn
+    if _embedding_fn is not None:
+        return _embedding_fn
+
+    try:
+        _embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=EMBEDDING_MODEL
+        )
+    except Exception:
+        _embedding_fn = FallbackEmbeddingFunction()
+    return _embedding_fn
 
 
 def get_client() -> chromadb.ClientAPI:
@@ -31,7 +84,7 @@ def get_client() -> chromadb.ClientAPI:
 
 def get_collection():
     return get_client().get_or_create_collection(
-        name=COLLECTION_NAME, embedding_function=_embedding_fn
+        name=COLLECTION_NAME, embedding_function=get_embedding_function()
     )
 
 

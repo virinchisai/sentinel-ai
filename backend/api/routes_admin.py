@@ -14,9 +14,9 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.get("/connector-status")
 def connector_status(
-    current_user: User = Depends(require_permission("chat")),
+    current_user: User = Depends(require_permission("view_sessions")),
 ) -> list[dict]:
-    """Returns live/mock status for each MCP connector. Any authenticated user can view."""
+    """Returns live/mock status for each MCP connector for admins/operators."""
     return get_connector_status()
 
 
