@@ -1,0 +1,65 @@
+name: Knowledge Reliability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/rag/sample_docs/**"
+      - "knowledge/**"
+      - "knowledge-tests/**"
+      - ".github/workflows/knowledge-reliability.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/rag/sample_docs/**"
+      - "knowledge/**"
+      - "knowledge-tests/**"
+      - ".github/workflows/knowledge-reliability.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  verify:
+    name: Verify RAG knowledge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Knowledge Reliability CI v0.1.0
+        run: python -m pip install "git+https://github.com/virinchisai/knowledge-reliability-ci.git@e59fdfb542be3645811861cfb98455843c529f48"
+
+      - name: Check claims, provenance, and source drift
+        run: knowledge-ci check . --sarif dist/knowledge-reliability.sarif
+
+      - name: Run knowledge regression tests
+        run: knowledge-ci test . --tests knowledge-tests
+
+      - name: Generate KBOM and source hashes
+        run: |
+          knowledge-ci kbom . --output dist/kbom.json
+          knowledge-ci hashes . --output dist/source-hashes.json
+
+      - name: Upload SARIF
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: dist/knowledge-reliability.sarif
+
+      - name: Upload knowledge verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: knowledge-reliability
+          path: |
+            dist/knowledge-reliability.sarif
+            dist/kbom.json
+            dist/source-hashes.json
+          if-no-files-found: warn

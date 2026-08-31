@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/pto#annual-days",
+  "subject": "paid-time-off",
+  "predicate": "annual_days",
+  "value": 15,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/pto_policy.md",
+    "title": "PTO Policy",
+    "sha256": "13ad2a9ccceececf31d258d82da99a8446318376f1ec87acc6a56dd8de7d076d",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "people-operations",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "Full-time employees accrue 15 days of paid time off per year."
+}

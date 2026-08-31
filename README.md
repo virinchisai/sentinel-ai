@@ -14,6 +14,7 @@
 
 ![tests](https://github.com/virinchisai/sentinel-ai/actions/workflows/test.yml/badge.svg)
 ![codeql](https://github.com/virinchisai/sentinel-ai/actions/workflows/codeql.yml/badge.svg)
+![knowledge reliability](https://github.com/virinchisai/sentinel-ai/actions/workflows/knowledge-reliability.yml/badge.svg)
 ![last commit](https://img.shields.io/github/last-commit/virinchisai/sentinel-ai?color=22c55e)
 ![code size](https://img.shields.io/github/languages/code-size/virinchisai/sentinel-ai?color=blue)
 ![top language](https://img.shields.io/github/languages/top/virinchisai/sentinel-ai)
@@ -247,10 +248,12 @@ sentinel-ai/
 │   └── tests/           # pytest suite
 ├── frontend/            # Next.js 14 + Tailwind: login, chat, documents, settings
 ├── evaluation/          # Eval dataset, runner, report
+├── knowledge/           # Provenance-pinned claims over RAG sample documents
+├── knowledge-tests/     # Deterministic expectations for critical policy values
 ├── docker/              # Dockerfile.backend, Dockerfile.frontend, docker-compose.yml
 ├── kubernetes/          # Production K8s manifests
 ├── .github/
-│   ├── workflows/       # test.yml + codeql.yml (SAST)
+│   ├── workflows/       # Application, CodeQL, and knowledge-reliability CI
 │   └── dependabot.yml   # Weekly dep updates
 └── SECURITY.md          # Vulnerability disclosure + threat model
 ```
@@ -271,12 +274,21 @@ The security suite (`backend/tests/test_security.py`) proves every protection st
 - Path-traversal blocking on filesystem connector
 
 ### On GitHub
-Three workflows run on every push and PR:
+The repository uses four automated quality and maintenance checks:
 - **[tests](../../actions/workflows/test.yml)** — pytest on Python 3.11 + 3.12, MCP smoke test (asserts ≥18 tools register), frontend lint + build
 - **[CodeQL](../../actions/workflows/codeql.yml)** — SAST for Python + TypeScript with the security-and-quality query suite
+- **[Knowledge Reliability](../../actions/workflows/knowledge-reliability.yml)** — validates the RAG sample documents for source drift, stale or contradictory claims, access leaks, and prompt-injection indicators; publishes SARIF, a KBOM, and source hashes
 - **Dependabot** — weekly PRs for outdated pip / npm / GitHub Actions dependencies
 
 You can also click **"Run workflow"** from the [Actions tab](../../actions) to trigger a manual run.
+
+Knowledge claims live in `knowledge/` and point directly to files in `backend/rag/sample_docs/`. Their SHA-256 values make document changes explicit during review. After an intentional policy edit, update the matching claim value and source hash, then run:
+
+```bash
+pip install "git+https://github.com/virinchisai/knowledge-reliability-ci.git@v0.1.0"
+knowledge-ci check .
+knowledge-ci test . --tests knowledge-tests
+```
 
 ## 🚢 Production Deployment
 

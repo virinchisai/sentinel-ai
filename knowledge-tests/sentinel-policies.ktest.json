@@ -1,0 +1,36 @@
+{
+  "name": "Sentinel AI sample policies remain reliable",
+  "audience": "employee",
+  "required_claims": [
+    "sentinel/engineering#production-review-approvals",
+    "sentinel/expenses#filing-window-days",
+    "sentinel/incidents#postmortem-deadline-days",
+    "sentinel/onboarding#security-training-days",
+    "sentinel/pto#annual-days",
+    "sentinel/security#minimum-password-length"
+  ],
+  "required_sources": [
+    "backend/rag/sample_docs/engineering_standards.md",
+    "backend/rag/sample_docs/expense_policy.md",
+    "backend/rag/sample_docs/incident_response.md",
+    "backend/rag/sample_docs/onboarding_faq.md",
+    "backend/rag/sample_docs/pto_policy.md",
+    "backend/rag/sample_docs/security_policy.md"
+  ],
+  "expected_values": {
+    "sentinel/engineering#production-review-approvals": 1,
+    "sentinel/expenses#filing-window-days": 30,
+    "sentinel/incidents#postmortem-deadline-days": 5,
+    "sentinel/onboarding#security-training-days": 7,
+    "sentinel/pto#annual-days": 15,
+    "sentinel/security#minimum-password-length": 12
+  },
+  "expected_classifications": {
+    "sentinel/engineering#production-review-approvals": "internal",
+    "sentinel/expenses#filing-window-days": "internal",
+    "sentinel/incidents#postmortem-deadline-days": "internal",
+    "sentinel/onboarding#security-training-days": "internal",
+    "sentinel/pto#annual-days": "internal",
+    "sentinel/security#minimum-password-length": "internal"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/onboarding#security-training-days",
+  "subject": "new-hire-onboarding",
+  "predicate": "security_training_deadline_days",
+  "value": 7,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/onboarding_faq.md",
+    "title": "New Hire Onboarding FAQ",
+    "sha256": "8c766c1896bbacc0f96d3800379eb4c2f425373e0eabd90a7fdc209688af9a84",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "people-operations",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "Employees must complete security awareness training within their first seven days."
+}

@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/incidents#postmortem-deadline-days",
+  "subject": "incident-response",
+  "predicate": "postmortem_deadline_business_days",
+  "value": 5,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/incident_response.md",
+    "title": "Incident Response Runbook",
+    "sha256": "90071fbf9a2506fd3bd070f085ce011575d9991cca384b94bda027f1a72e40a9",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "security",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "SEV1 and SEV2 incidents require a postmortem within five business days of resolution."
+}

@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/engineering#production-review-approvals",
+  "subject": "production-code-review",
+  "predicate": "minimum_approvals",
+  "value": 1,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/engineering_standards.md",
+    "title": "Engineering Standards",
+    "sha256": "77e8b4170c7ead0327a3ad949e0775695f6bdf83470fb5bff8dcc58cc06cb2a5",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "engineering",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "Production code changes require at least one approved review before merging."
+}

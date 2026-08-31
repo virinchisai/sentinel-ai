@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/security#minimum-password-length",
+  "subject": "password-policy",
+  "predicate": "minimum_length",
+  "value": 12,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/security_policy.md",
+    "title": "Security Policy",
+    "sha256": "33455b440be6640237d9f84be0febcc5297e43e516be45f149eb4ad34688efe2",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "security",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "Employee passwords must contain at least 12 characters."
+}

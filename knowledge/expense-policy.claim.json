@@ -1,0 +1,20 @@
+{
+  "id": "sentinel/expenses#filing-window-days",
+  "subject": "expense-reimbursement",
+  "predicate": "filing_window_days",
+  "value": 30,
+  "sources": [{
+    "uri": "backend/rag/sample_docs/expense_policy.md",
+    "title": "Expense Reimbursement Policy",
+    "sha256": "b0d2fe7d0b3cf7cf7067bab48b8bef0474c07eb7c0f13bde2609790f9e8800c7",
+    "classification": "internal",
+    "license": "MIT"
+  }],
+  "classification": "internal",
+  "audiences": ["employee"],
+  "owner": "finance",
+  "verified_at": "2026-08-31",
+  "stale_after": "2027-08-31",
+  "status": "stable",
+  "body": "Expense reports must be filed within 30 days of the expense."
+}
