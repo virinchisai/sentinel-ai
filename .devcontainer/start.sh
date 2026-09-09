@@ -21,7 +21,7 @@ echo
 echo "  Frontend (try this!) → http://localhost:3000"
 echo "  Backend API          → http://localhost:8000/docs"
 echo
-echo "  Demo login → alice / sentinel-demo"
+echo "  Register your own account in the UI"
 echo
 echo "  Logs: tail -f /tmp/backend.log /tmp/frontend.log"
 echo "═══════════════════════════════════════════════════════════════"

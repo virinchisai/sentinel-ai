@@ -4,40 +4,70 @@ Run locally:
     uvicorn backend.api.main:app --reload
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from backend.config import settings
+from backend.auth.oidc import router as oidc_router
+from backend.api.routes_connectors import router as connectors_router
+from backend.api.routes_workspaces import router as workspaces_router
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import Response
 
 from backend.api.routes_admin import router as admin_router
 from backend.api.routes_chat import router as chat_router
 from backend.api.routes_documents import router as documents_router
-from backend.auth.models import init_db
 from backend.auth.routes import router as auth_router
 from backend.observability.logging import setup_logging
 from backend.observability.security_headers import SecurityHeadersMiddleware
 from backend.observability.tracing import TracingMiddleware
 
 setup_logging()
-init_db()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    from backend.migrate import migrate
+
+    if settings.environment == "production" and (
+        len(settings.jwt_secret_key) < 32 or "change-me" in settings.jwt_secret_key
+    ):
+        raise RuntimeError("Set a strong JWT_SECRET_KEY before production startup")
+    migrate()
+    import asyncio
+    from backend.rag.jobs import worker
+
+    task = asyncio.create_task(worker())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 app = FastAPI(
     title="SentinelAI",
     description="Secure Enterprise AI Workspace — MCP-powered agent platform",
-    version="0.1.0",
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=settings.allowed_origins.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +76,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(TracingMiddleware)
 
 app.include_router(auth_router)
+app.include_router(oidc_router)
+app.include_router(connectors_router)
+app.include_router(workspaces_router)
 app.include_router(chat_router)
 app.include_router(documents_router)
 app.include_router(admin_router)

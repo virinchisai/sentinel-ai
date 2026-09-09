@@ -10,9 +10,13 @@ def register(mcp):
         return get_client().list_events(max_results)
 
     @mcp.tool()
-    def calendar_create_event(summary: str, start: str, end: str, attendees: str = "") -> dict:
+    def calendar_create_event(
+        summary: str, start: str, end: str, attendees: str = ""
+    ) -> dict:
         """Create a new calendar event. Attendees as comma-separated emails."""
-        attendee_list = [a.strip() for a in attendees.split(",") if a.strip()] if attendees else []
+        attendee_list = (
+            [a.strip() for a in attendees.split(",") if a.strip()] if attendees else []
+        )
         return get_client().create_event(summary, start, end, attendee_list)
 
     @mcp.tool()

@@ -6,9 +6,19 @@ import re
 
 MIN_LENGTH = 8
 COMMON_PASSWORDS = {
-    "password", "12345678", "qwerty", "admin", "letmein",
-    "welcome", "monkey", "dragon", "master", "abc12345",
-    "password1", "iloveyou", "sentinel-ai",
+    "password",
+    "12345678",
+    "qwerty",
+    "admin",
+    "letmein",
+    "welcome",
+    "monkey",
+    "dragon",
+    "master",
+    "abc12345",
+    "password1",
+    "iloveyou",
+    "sentinel-ai",
 }
 
 

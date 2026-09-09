@@ -1,23 +1,7 @@
-"""Top-k retrieval with citation support over the ingested knowledge base."""
-
-from __future__ import annotations
-
-from backend.config import settings
+from backend.rag.documents import retrieve as _retrieve
 
 
-def _get_store():
-    if settings.rag_backend == "pgvector":
-        from backend.rag.pgvector_store import PGVectorStore
-
-        return PGVectorStore()
-    from backend.rag import store
-
-    return store
-
-
-def retrieve(query_text: str, top_k: int = 3) -> list[dict]:
-    backend = _get_store()
-    results = backend.query(query_text, top_k=top_k)
-    for i, r in enumerate(results, start=1):
-        r["citation"] = f"[{i}] {r.get('source', 'unknown')}"
-    return results
+def retrieve(query_text, top_k=3, workspace_id=None):
+    if not workspace_id:
+        raise ValueError("workspace_id is required")
+    return _retrieve(query_text, workspace_id, top_k)

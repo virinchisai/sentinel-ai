@@ -15,3 +15,15 @@ dist/
 sentinel.db
 sentinel_demo.db
 sentinel_memory.db
+data/
+workspace/
+node_modules/
+.next/
+playwright-report/
+test-results/
+evaluation/results/
+*.backup
+.env.*
+!.env.example
+.playwright-cli/
+output/

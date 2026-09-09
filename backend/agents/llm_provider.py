@@ -25,7 +25,9 @@ class ChatResponse:
     text: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     stop_reason: str = "end"
-    raw_assistant_message: Any = None  # provider-native message, fed back for multi-turn tool use
+    raw_assistant_message: Any = (
+        None  # provider-native message, fed back for multi-turn tool use
+    )
 
 
 class LLMProvider(ABC):
@@ -55,7 +57,9 @@ class AnthropicProvider(LLMProvider):
             {
                 "name": t["name"],
                 "description": t.get("description", ""),
-                "input_schema": t.get("input_schema", {"type": "object", "properties": {}}),
+                "input_schema": t.get(
+                    "input_schema", {"type": "object", "properties": {}}
+                ),
             }
             for t in tools
         ]
@@ -111,7 +115,9 @@ class OpenAIProvider(LLMProvider):
                 "function": {
                     "name": t["name"],
                     "description": t.get("description", ""),
-                    "parameters": t.get("input_schema", {"type": "object", "properties": {}}),
+                    "parameters": t.get(
+                        "input_schema", {"type": "object", "properties": {}}
+                    ),
                 },
             }
             for t in tools
@@ -158,8 +164,93 @@ def _safe_json(raw: str) -> dict:
 
 def get_provider(name: str | None = None) -> LLMProvider:
     name = (name or settings.llm_provider).lower()
+    if name == "ollama":
+        return OllamaProvider()
     if name == "anthropic":
         return AnthropicProvider()
     if name == "openai":
         return OpenAIProvider()
     raise ValueError(f"Unknown LLM provider: {name}")
+
+
+class OllamaProvider(LLMProvider):
+    """Local inference; no API key or paid endpoint required."""
+
+    def chat(self, messages, tools):
+        import httpx
+
+        response = httpx.post(
+            settings.ollama_base_url + "/api/chat",
+            json={
+                "model": settings.ollama_model,
+                "options": {"num_predict": 512, "temperature": 0},
+                "messages": messages,
+                "tools": OpenAIProvider._to_openai_tools(tools),
+                "stream": False,
+            },
+            timeout=settings.request_timeout,
+        )
+        response.raise_for_status()
+        msg = response.json()["message"]
+        calls = [
+            ToolCall(
+                id=f"local-{i}",
+                name=t["function"]["name"],
+                arguments=t["function"]["arguments"],
+            )
+            for i, t in enumerate(msg.get("tool_calls", []))
+        ]
+        return ChatResponse(
+            text=msg.get("content", ""), tool_calls=calls, raw_assistant_message=msg
+        )
+
+    def assistant_message(self, response):
+        return response.raw_assistant_message
+
+    def tool_result_message(self, tool_call, result):
+        return {"role": "tool", "tool_name": tool_call.name, "content": str(result)}
+
+    async def stream(self, messages, tools):
+        import httpx
+        import json
+        import uuid
+
+        text, calls = "", []
+        async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+            async with client.stream(
+                "POST",
+                settings.ollama_base_url + "/api/chat",
+                json={
+                    "model": settings.ollama_model,
+                    "options": {"num_predict": 512, "temperature": 0},
+                    "messages": messages,
+                    "tools": OpenAIProvider._to_openai_tools(tools),
+                    "stream": True,
+                },
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    item = json.loads(line)
+                    if item.get("error"):
+                        raise RuntimeError(item["error"])
+                    message = item.get("message", {})
+                    token = message.get("content", "")
+                    text += token
+                    if token:
+                        yield token
+                    for call in message.get("tool_calls", []):
+                        calls.append(
+                            ToolCall(
+                                id=str(uuid.uuid4()),
+                                name=call["function"]["name"],
+                                arguments=call["function"]["arguments"],
+                            )
+                        )
+        msg = {"role": "assistant", "content": text}
+        if calls:
+            msg["tool_calls"] = [
+                {"function": {"name": c.name, "arguments": c.arguments}} for c in calls
+            ]
+        yield ChatResponse(text=text, tool_calls=calls, raw_assistant_message=msg)

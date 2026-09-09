@@ -15,23 +15,36 @@ class FakeProvider(LLMProvider):
         if self.call_count == 1:
             return ChatResponse(
                 text="",
-                tool_calls=[ToolCall(id="call-1", name="echo", arguments={"message": "test"})],
+                tool_calls=[
+                    ToolCall(id="call-1", name="echo", arguments={"message": "test"})
+                ],
                 stop_reason="tool_use",
-                raw_assistant_message={"role": "assistant", "content": "[calling echo]"},
+                raw_assistant_message={
+                    "role": "assistant",
+                    "content": "[calling echo]",
+                },
             )
         return ChatResponse(text="Done: echo: test", tool_calls=[], stop_reason="end")
 
     def assistant_message(self, response):
-        return response.raw_assistant_message or {"role": "assistant", "content": response.text}
+        return response.raw_assistant_message or {
+            "role": "assistant",
+            "content": response.text,
+        }
 
     def tool_result_message(self, tool_call, result):
-        return {"role": "user", "content": f"tool result for {tool_call.name}: {result}"}
+        return {
+            "role": "user",
+            "content": f"tool result for {tool_call.name}: {result}",
+        }
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_executes_tool_call_then_answers():
+async def test_orchestrator_executes_tool_call_then_answers(actor):
     orchestrator = Orchestrator(provider=FakeProvider())
-    result = await orchestrator.run("test-session-orch", "please echo test", enable_planning=False)
+    result = await orchestrator.run(
+        "test-session-orch", "please echo test", enable_planning=False, actor=actor
+    )
     assert "echo: test" in result.text
     assert "echo" in result.tool_calls
     assert len(result.trace.tool_traces) >= 1

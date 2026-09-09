@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SentinelAI — Secure Enterprise AI Workspace",
-  description: "MCP-powered enterprise AI platform for knowledge, code, email, calendar, and operational tools",
+  description:
+    "MCP-powered enterprise AI platform for knowledge, code, email, calendar, and operational tools",
 };
 
 export default function RootLayout({

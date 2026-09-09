@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearTokens, getMe } from "@/lib/api";
+import { logout as endSession, getMe, json, workspace } from "@/lib/api";
 
 const NAV = [
   { href: "/chat", label: "Chat", icon: "💬" },
@@ -12,9 +12,19 @@ const NAV = [
 ];
 
 export default function Sidebar() {
+  const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  useEffect(() => {
+    json("/workspaces")
+      .then(setWorkspaces)
+      .catch(() => {});
+  }, []);
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ username: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ username: string; role: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     getMe()
@@ -22,18 +32,49 @@ export default function Sidebar() {
       .catch(() => undefined);
   }, []);
 
-  const logout = () => {
-    clearTokens();
-    router.push("/login");
+  useEffect(() => {
+    const expired = () => router.replace("/login");
+    window.addEventListener("sentinel:unauthorized", expired);
+    return () => window.removeEventListener("sentinel:unauthorized", expired);
+  }, [router]);
+  const logout = async () => {
+    try {
+      await endSession();
+    } finally {
+      router.replace("/login");
+    }
   };
 
   return (
     <aside className="w-64 bg-[var(--card)] border-r border-[var(--border)] flex flex-col">
       <div className="p-6 border-b border-[var(--border)]">
         <h1 className="text-xl font-bold text-[var(--accent)]">SentinelAI</h1>
-        <p className="text-xs text-[var(--muted)] mt-1">Enterprise AI Workspace</p>
+        <p className="text-xs text-[var(--muted)] mt-1">
+          Enterprise AI Workspace
+        </p>
       </div>
 
+      <div className="p-4">
+        <label className="text-xs" htmlFor="workspace">
+          Workspace
+        </label>
+        <select
+          id="workspace"
+          className="w-full mt-2 p-2 bg-[var(--background)] rounded"
+          value={workspace()}
+          onChange={(e) => {
+            localStorage.setItem("sentinel_workspace", e.target.value);
+            window.location.reload();
+          }}
+        >
+          <option value="">Personal workspace</option>
+          {workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <nav className="flex-1 p-4 space-y-1">
         {NAV.map((item) => {
           const active = pathname === item.href;
@@ -58,7 +99,9 @@ export default function Sidebar() {
         {user && (
           <div className="mb-3 px-2">
             <div className="text-sm font-medium">{user.username}</div>
-            <div className="text-xs text-[var(--muted)] capitalize">{user.role}</div>
+            <div className="text-xs text-[var(--muted)] capitalize">
+              {user.role}
+            </div>
           </div>
         )}
         <button

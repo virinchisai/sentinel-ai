@@ -8,7 +8,9 @@ from functools import wraps
 from backend.auth.models import AuditLog, get_session_factory
 
 
-def log_action(user_id: int | None, action: str, resource: str = "", detail: str = "", ip: str = "") -> None:
+def log_action(
+    user_id: int | None, action: str, resource: str = "", detail: str = "", ip: str = ""
+) -> None:
     factory = get_session_factory()
     db = factory()
     try:

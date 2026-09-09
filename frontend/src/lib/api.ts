@@ -1,75 +1,101 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("sentinel_token");
-}
-
+const getToken = () =>
+  typeof window === "undefined" ? null : localStorage.getItem("sentinel_token");
 export function setToken(token: string) {
   localStorage.setItem("sentinel_token", token);
 }
-
 export function setRefreshToken(token: string) {
   localStorage.setItem("sentinel_refresh_token", token);
 }
-
 export function clearTokens() {
   localStorage.removeItem("sentinel_token");
   localStorage.removeItem("sentinel_refresh_token");
+  localStorage.removeItem("sentinel_workspace");
+  localStorage.removeItem("sentinel_upload_job");
 }
-
-export function isAuthenticated(): boolean {
-  return !!getToken();
+export const isAuthenticated = () => !!getToken();
+export const workspace = () =>
+  typeof window === "undefined"
+    ? ""
+    : localStorage.getItem("sentinel_workspace") || "";
+let refreshing: Promise<boolean> | null = null;
+async function refresh() {
+  const token = localStorage.getItem("sentinel_refresh_token");
+  if (!token) return false;
+  const r = await fetch(API_BASE + "/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: token }),
+  });
+  if (!r.ok) return false;
+  const d = await r.json();
+  setToken(d.access_token);
+  setRefreshToken(d.refresh_token);
+  return true;
 }
-
-async function apiFetch(path: string, options: RequestInit = {}) {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (res.status === 401) {
+export async function apiFetch(
+  path: string,
+  options: RequestInit = {},
+  retry = true,
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  if (!(options.body instanceof FormData))
+    headers.set("Content-Type", "application/json");
+  if (getToken()) headers.set("Authorization", `Bearer ${getToken()}`);
+  const r = await fetch(API_BASE + path, { ...options, headers });
+  if (r.status === 401 && retry && !path.startsWith("/auth/")) {
+    refreshing ||= refresh().finally(() => {
+      refreshing = null;
+    });
+    if (await refreshing) return apiFetch(path, options, false);
     clearTokens();
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    window.dispatchEvent(new Event("sentinel:unauthorized"));
   }
-
-  return res;
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(
+      typeof d.detail === "string" ? d.detail : `Request failed (${r.status})`,
+    );
+  }
+  return r;
 }
-
-export async function register(username: string, email: string, password: string) {
-  const res = await apiFetch("/auth/register", {
+export async function json(path: string, options: RequestInit = {}) {
+  return (await apiFetch(path, options)).json();
+}
+export async function register(
+  username: string,
+  email: string,
+  password: string,
+) {
+  return json("/auth/register", {
     method: "POST",
     body: JSON.stringify({ username, email, password }),
   });
-  return res.json();
 }
-
 export async function login(username: string, password: string) {
-  const res = await apiFetch("/auth/login", {
+  const d = await json("/auth/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
-  const data = await res.json();
-  if (data.access_token) {
-    setToken(data.access_token);
-    setRefreshToken(data.refresh_token);
+  setToken(d.access_token);
+  setRefreshToken(d.refresh_token);
+  return d;
+}
+export async function logout() {
+  try {
+    await apiFetch("/auth/logout", { method: "POST" });
+  } finally {
+    clearTokens();
   }
-  return data;
 }
-
-export async function getMe() {
-  const res = await apiFetch("/auth/me");
-  return res.json();
+export const getMe = () => json("/auth/me");
+export interface Source {
+  document_id: string;
+  source: string;
+  page: number;
+  text: string;
+  version: number;
 }
-
 export interface ChatResult {
   reply: string;
   session_id: string;
@@ -83,44 +109,81 @@ export interface ChatResult {
   }[];
   needs_approval: boolean;
   pending_action: string;
+  approval_id: string;
+  sources: Source[];
 }
-
-export async function chat(
+export interface StreamEvent extends Partial<ChatResult> {
+  type: string;
+  text?: string;
+  message?: string;
+  tool?: string;
+}
+export async function streamChat(
   message: string,
-  sessionId: string = "default"
-): Promise<ChatResult> {
-  const res = await apiFetch("/chat", {
+  sessionId: string,
+  onEvent: (e: StreamEvent) => void,
+  signal: AbortSignal,
+) {
+  const r = await apiFetch("/chat/stream", {
     method: "POST",
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({
+      message,
+      session_id: sessionId,
+      workspace_id: workspace() || null,
+    }),
+    signal,
   });
-  return res.json();
+  const reader = r.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let end;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      if (block.startsWith("data: ")) onEvent(JSON.parse(block.slice(6)));
+    }
+  }
 }
-
 export async function uploadDocument(file: File) {
-  const token = getToken();
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await fetch(`${API_BASE}/documents/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: formData,
-  });
-  return res.json();
+  const body = new FormData();
+  body.append("file", file);
+  const job = await json(
+    "/documents/upload?background=true" +
+      (workspace() ? `&workspace_id=${encodeURIComponent(workspace())}` : ""),
+    { method: "POST", body },
+  );
+  localStorage.setItem("sentinel_upload_job", job.job_id);
+  for (let i = 0; i < 600; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const status = await json("/documents/jobs/" + job.job_id);
+    if (status.status === "completed") {
+      localStorage.removeItem("sentinel_upload_job");
+      return status.result;
+    }
+    if (["failed", "interrupted"].includes(status.status)) {
+      localStorage.removeItem("sentinel_upload_job");
+      throw new Error(
+        status.result?.error || "Upload interrupted; re-upload to retry",
+      );
+    }
+  }
+  throw new Error(
+    "Upload is still processing. Its job ID is saved in this browser.",
+  );
 }
-
-export async function getDocumentCount() {
-  const res = await apiFetch("/documents/list");
-  return res.json();
-}
-
+export const getDocumentCount = () =>
+  json(
+    "/documents/list" +
+      (workspace() ? `?workspace_id=${encodeURIComponent(workspace())}` : ""),
+  );
 export interface ConnectorStatus {
   name: string;
-  mode: "live" | "mock" | "demo" | "empty" | "no_key";
+  mode: string;
   detail: string;
 }
-
-export async function getConnectorStatus(): Promise<ConnectorStatus[]> {
-  const res = await apiFetch("/admin/connector-status");
-  return res.json();
-}
+export const getConnectorStatus = (): Promise<ConnectorStatus[]> =>
+  json("/connectors/status");

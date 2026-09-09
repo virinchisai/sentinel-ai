@@ -1,23 +1,10 @@
-FROM python:3.12-slim AS base
-
+FROM python:3.12-slim
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY pyproject.toml ./
-COPY config.py ./
-COPY mcp_server ./mcp_server
-COPY agent ./agent
-COPY rag ./rag
-COPY api ./api
-COPY eval ./eval
-
-RUN pip install --no-cache-dir -e .
-
-RUN python -m rag.ingest
-
+COPY pyproject.toml requirements.lock ./
+COPY backend ./backend
+COPY evaluation ./evaluation
+RUN pip install --no-cache-dir -r requirements.lock && pip install --no-deps . && useradd --uid 10001 --create-home sentinel && mkdir -p /app/data /app/workspace && chown -R sentinel:sentinel /app
+USER sentinel
+ENV DATABASE_URL=sqlite:////app/data/sentinel.db PYTHONUNBUFFERED=1
 EXPOSE 8000
-
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -52,11 +52,24 @@ def score_keywords(reply: str, keywords: list[str]) -> tuple[int, int]:
 
 
 async def run_all() -> list[CaseResult]:
+    import uuid
+    import os
+    from backend.auth.workspaces import resolve_workspace
+    from backend.agents.policy import Actor
+
+    user_id = int(os.environ["EVAL_USER_ID"])
+    actor = Actor(
+        user_id, resolve_workspace(user_id, os.environ.get("EVAL_WORKSPACE_ID"))
+    )
     orchestrator = Orchestrator()
     results = []
     for case in load_dataset():
-        agent_result = await orchestrator.run(f"eval-{case['id']}", case["prompt"])
-        hits, total = score_keywords(agent_result.text, case.get("expected_keywords", []))
+        agent_result = await orchestrator.run(
+            f"eval-{uuid.uuid4()}-{case['id']}", case["prompt"], actor=actor
+        )
+        hits, total = score_keywords(
+            agent_result.text, case.get("expected_keywords", [])
+        )
         tool_call_correct = case["expected_tool"] in agent_result.tool_calls
         results.append(
             CaseResult(

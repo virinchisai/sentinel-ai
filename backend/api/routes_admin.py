@@ -7,17 +7,17 @@ from fastapi import APIRouter, Depends
 from backend.agents.memory import list_sessions
 from backend.auth.middleware import require_permission
 from backend.auth.models import AuditLog, User, get_db
-from backend.mcp_server.connectors.status import get_connector_status
+from backend.api.routes_connectors import status as get_connector_status
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/connector-status")
-def connector_status(
+async def connector_status(
     current_user: User = Depends(require_permission("chat")),
 ) -> list[dict]:
     """Returns live/mock status for each MCP connector. Any authenticated user can view."""
-    return get_connector_status()
+    return await get_connector_status(current_user)
 
 
 @router.get("/audit-log")

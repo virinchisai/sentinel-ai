@@ -19,7 +19,13 @@ def chunk_by_heading(text: str, max_chunk_size: int = 800) -> list[dict]:
             chunks.append(section)
         else:
             chunks.extend(_split_on_paragraphs(section, max_chunk_size))
-    return [{"text": c, "hash": hashlib.sha256(c.encode()).hexdigest()[:16]} for c in chunks]
+    return [
+        {"text": part, "hash": hashlib.sha256(part.encode()).hexdigest()[:16]}
+        for c in chunks
+        for part in [
+            c[i : i + max_chunk_size] for i in range(0, len(c), max_chunk_size)
+        ]
+    ]
 
 
 def _split_on_paragraphs(text: str, max_size: int) -> list[str]:

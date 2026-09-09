@@ -10,14 +10,19 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-DESTRUCTIVE_TOOLS = {"github_create_issue", "github_comment_on_issue"}
+DESTRUCTIVE_TOOLS = {
+    "github_create_issue",
+    "github_comment_on_issue",
+    "gmail_draft_reply",
+    "calendar_create_event",
+}
 
 PLANNING_PROMPT = """You are a planning agent. Given the user's request, break it into a numbered list of concrete steps.
 Each step should be a single action that can be accomplished with one tool call or a direct answer.
 If a step requires a destructive action (creating issues, sending emails), mark it with [APPROVAL_REQUIRED].
 
 Respond with ONLY a JSON array of step objects:
-[{"step": 1, "description": "...", "needs_approval": false}, ...]
+[{{"step": 1, "description": "...", "needs_approval": false}}, ...]
 
 User request: {query}"""
 

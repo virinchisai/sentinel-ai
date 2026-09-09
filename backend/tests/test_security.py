@@ -14,6 +14,7 @@ from backend.mcp_server.connectors.filesystem_client import get_client as fs_cli
 
 # ─── Passwords ───
 
+
 def test_password_rejects_too_short():
     with pytest.raises(PasswordError, match="at least"):
         validate_password("abc1!")
@@ -34,6 +35,7 @@ def test_password_accepts_strong():
 
 
 # ─── JWT ───
+
 
 def test_jwt_round_trip():
     token = create_access_token({"sub": "alice", "role": "user"})
@@ -56,6 +58,7 @@ def test_jwt_rejects_wrong_type():
 
 # ─── RBAC ───
 
+
 def test_rbac_admin_has_manage_users():
     assert has_permission(Role.ADMIN, "manage_users")
 
@@ -69,6 +72,7 @@ def test_rbac_viewer_blocked_from_uploads():
 
 
 # ─── Database connector ───
+
 
 def test_db_blocks_drop():
     r = db_client().execute_query("DROP TABLE employees")
@@ -91,6 +95,7 @@ def test_db_allows_select():
 
 
 # ─── File system sandbox ───
+
 
 def test_fs_blocks_path_traversal():
     with pytest.raises(PermissionError):

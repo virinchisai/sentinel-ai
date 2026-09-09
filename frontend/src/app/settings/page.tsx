@@ -1,91 +1,198 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { getConnectorStatus, getMe, isAuthenticated, type ConnectorStatus } from "@/lib/api";
-
-const MODE_STYLE: Record<ConnectorStatus["mode"], { label: string; color: string; dot: string }> = {
-  live:   { label: "Live",      color: "text-[var(--success)]", dot: "bg-[var(--success)]" },
-  demo:   { label: "Demo",      color: "text-[var(--accent)]",  dot: "bg-[var(--accent)]" },
-  mock:   { label: "Mock",      color: "text-yellow-400",       dot: "bg-yellow-400" },
-  empty:  { label: "Empty",     color: "text-[var(--muted)]",   dot: "bg-[var(--muted)]" },
-  no_key: { label: "No API Key", color: "text-[var(--danger)]", dot: "bg-[var(--danger)]" },
-};
-
-export default function SettingsPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<{ id: number; username: string; email: string; role: string } | null>(null);
-  const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push("/login");
-      return;
-    }
-    getMe()
-      .then((u) => u?.id && setUser(u))
-      .catch(() => undefined);
+import {
+  json,
+  getConnectorStatus,
+  ConnectorStatus,
+  workspace,
+} from "@/lib/api";
+export default function Settings() {
+  const [rows, setRows] = useState<ConnectorStatus[]>([]),
+    [status, setStatus] = useState(""),
+    [token, setToken] = useState(""),
+    [clientId, setClientId] = useState(""),
+    [clientSecret, setClientSecret] = useState(""),
+    [refreshToken, setRefreshToken] = useState(""),
+    [name, setName] = useState(""),
+    [member, setMember] = useState("");
+  const reload = () =>
     getConnectorStatus()
-      .then((s) => Array.isArray(s) && setConnectors(s))
-      .catch(() => undefined);
-  }, [router]);
-
+      .then(setRows)
+      .catch((e) => setStatus(String(e)));
+  useEffect(() => {
+    reload();
+  }, []);
+  async function connect(provider: string, value: Record<string, string>) {
+    try {
+      await json("/connectors/" + provider, {
+        method: "PUT",
+        body: JSON.stringify(value),
+      });
+      setToken("");
+      setClientSecret("");
+      setRefreshToken("");
+      setStatus("Credentials encrypted and saved for your account.");
+      reload();
+    } catch (e) {
+      setStatus(String(e));
+    }
+  }
+  const input = "block w-full bg-[var(--background)] border rounded p-2 my-3";
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen">
       <Sidebar />
-
-      <main className="flex-1 overflow-y-auto">
-        <header className="px-6 py-4 border-b border-[var(--border)] bg-[var(--card)]">
-          <h2 className="font-semibold">Settings</h2>
-          <p className="text-xs text-[var(--muted)]">Account and workspace configuration</p>
-        </header>
-
-        <div className="max-w-3xl mx-auto p-6 space-y-6">
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-            <h3 className="font-semibold mb-4">Profile</h3>
-            {user ? (
-              <dl className="grid grid-cols-2 gap-y-3 text-sm">
-                <dt className="text-[var(--muted)]">User ID</dt>
-                <dd>{user.id}</dd>
-                <dt className="text-[var(--muted)]">Username</dt>
-                <dd>{user.username}</dd>
-                <dt className="text-[var(--muted)]">Email</dt>
-                <dd>{user.email}</dd>
-                <dt className="text-[var(--muted)]">Role</dt>
-                <dd className="capitalize">{user.role}</dd>
-              </dl>
-            ) : (
-              <div className="text-[var(--muted)]">Loading...</div>
-            )}
+      <main className="flex-1 p-8">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <h1 className="text-2xl font-semibold">Connections & workspaces</h1>
+          <p role="status">{status}</p>
+          <section className="border rounded-xl p-5">
+            <div className="flex justify-between">
+              <h2 className="font-semibold">Connection health</h2>
+              <button onClick={reload}>Refresh</button>
+            </div>
+            {rows.map((r) => (
+              <div key={r.name} className="border-b py-3">
+                <span className="font-medium">{r.name}</span>
+                <span className="ml-3 text-xs uppercase text-[var(--accent)]">
+                  {r.mode}
+                </span>
+                <p className="text-sm text-[var(--muted)]">{r.detail}</p>
+              </div>
+            ))}
           </section>
-
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-            <h3 className="font-semibold mb-2">Connector Status</h3>
-            <p className="text-sm text-[var(--muted)] mb-4">
-              Real status from the backend. Mock connectors return realistic sample data — to switch them to live, set the relevant credentials in <code className="text-xs bg-[var(--background)] px-1 rounded">.env</code>.
+          <section className="border rounded-xl p-5">
+            <h2 className="font-semibold">GitHub</h2>
+            <p className="text-sm mt-2">
+              Use a fine-grained token limited to your allowed repositories.
+              Writes require a separate action approval.
             </p>
-            {connectors.length === 0 ? (
-              <div className="text-[var(--muted)] text-sm">Loading status...</div>
-            ) : (
-              <ul className="space-y-2">
-                {connectors.map((c) => {
-                  const style = MODE_STYLE[c.mode];
-                  return (
-                    <li key={c.name} className="px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg flex items-start gap-3">
-                      <span className={`mt-1.5 w-2 h-2 rounded-full ${style.dot} flex-shrink-0`}></span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="font-medium">{c.name}</span>
-                          <span className={`text-xs uppercase tracking-wider ${style.color}`}>{style.label}</span>
-                        </div>
-                        <div className="text-xs text-[var(--muted)] mt-0.5">{c.detail}</div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <input
+              aria-label="GitHub token"
+              type="password"
+              autoComplete="off"
+              className={input}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Personal access token"
+            />
+            <button
+              disabled={!token}
+              onClick={() => connect("github", { token })}
+            >
+              Connect GitHub
+            </button>
+            <button
+              className="ml-5"
+              onClick={() =>
+                json("/connectors/github", { method: "DELETE" })
+                  .then(reload)
+                  .catch((e) => setStatus(String(e)))
+              }
+            >
+              Disconnect
+            </button>
+          </section>
+          <section className="border rounded-xl p-5">
+            <h2 className="font-semibold">Google OAuth</h2>
+            <p className="text-sm mt-2">
+              Use your own OAuth application’s client credentials and an
+              authorized refresh token for Gmail and Calendar. See the connector
+              setup guide in the repository.
+            </p>
+            <input
+              aria-label="Google client ID"
+              className={input}
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              placeholder="Client ID"
+            />
+            <input
+              aria-label="Google client secret"
+              type="password"
+              autoComplete="off"
+              className={input}
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+              placeholder="Client secret"
+            />
+            <input
+              aria-label="Google refresh token"
+              type="password"
+              autoComplete="off"
+              className={input}
+              value={refreshToken}
+              onChange={(e) => setRefreshToken(e.target.value)}
+              placeholder="Refresh token"
+            />
+            <button
+              disabled={!clientId || !clientSecret || !refreshToken}
+              onClick={() =>
+                connect("google", {
+                  client_id: clientId,
+                  client_secret: clientSecret,
+                  refresh_token: refreshToken,
+                })
+              }
+            >
+              Connect Google
+            </button>
+            <button
+              className="ml-5"
+              onClick={() =>
+                json("/connectors/google", { method: "DELETE" })
+                  .then(reload)
+                  .catch((e) => setStatus(String(e)))
+              }
+            >
+              Disconnect
+            </button>
+          </section>
+          <section className="border rounded-xl p-5">
+            <h2 className="font-semibold">Team workspace</h2>
+            <input
+              aria-label="New workspace name"
+              className={input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Workspace name"
+            />
+            <button
+              disabled={!name}
+              onClick={() =>
+                json("/workspaces", {
+                  method: "POST",
+                  body: JSON.stringify({ name }),
+                })
+                  .then((w) => {
+                    localStorage.setItem("sentinel_workspace", w.id);
+                    window.location.reload();
+                  })
+                  .catch((e) => setStatus(String(e)))
+              }
+            >
+              Create workspace
+            </button>
+            <input
+              aria-label="Member username"
+              className={input}
+              value={member}
+              onChange={(e) => setMember(e.target.value)}
+              placeholder="Existing user's username"
+            />
+            <button
+              disabled={!member || !workspace()}
+              onClick={() =>
+                json(`/workspaces/${workspace()}/members`, {
+                  method: "PUT",
+                  body: JSON.stringify({ username: member }),
+                })
+                  .then(() => setStatus("Member added."))
+                  .catch((e) => setStatus(String(e)))
+              }
+            >
+              Add member to selected workspace
+            </button>
           </section>
         </div>
       </main>

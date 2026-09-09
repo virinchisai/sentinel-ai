@@ -51,9 +51,28 @@ class CalendarClient:
     def list_events(self, max_results: int = 10) -> list[dict]:
         if self._use_mock:
             return MOCK_EVENTS[:max_results]
-        raise NotImplementedError("Real Calendar API not yet configured")
+        from backend.connectors.google import GoogleAPI
+        from datetime import datetime, timezone
 
-    def create_event(self, summary: str, start: str, end: str, attendees: list[str] | None = None) -> dict:
+        return (
+            GoogleAPI(settings.google_calendar_credentials_json)
+            .request(
+                "calendar",
+                "GET",
+                "calendars/primary/events",
+                params={
+                    "timeMin": datetime.now(timezone.utc).isoformat(),
+                    "maxResults": max(1, min(max_results, 100)),
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                },
+            )
+            .get("items", [])
+        )
+
+    def create_event(
+        self, summary: str, start: str, end: str, attendees: list[str] | None = None
+    ) -> dict:
         if self._use_mock:
             return {
                 "status": "created",
@@ -63,12 +82,47 @@ class CalendarClient:
                 "end": end,
                 "attendees": attendees or [],
             }
-        raise NotImplementedError("Real Calendar API not yet configured")
+        from backend.connectors.google import GoogleAPI
+        from datetime import datetime
+
+        if datetime.fromisoformat(end) <= datetime.fromisoformat(start):
+            raise ValueError("Event end must follow start")
+        return GoogleAPI(settings.google_calendar_credentials_json).request(
+            "calendar",
+            "POST",
+            "calendars/primary/events",
+            json={
+                "summary": summary,
+                "start": {"dateTime": start},
+                "end": {"dateTime": end},
+                "attendees": [{"email": a} for a in attendees or []],
+            },
+            params={"sendUpdates": "all"},
+        )
 
     def check_availability(self, date: str) -> list[dict]:
         if self._use_mock:
             return [e for e in MOCK_EVENTS if date in e["start"]]
-        raise NotImplementedError("Real Calendar API not yet configured")
+        from backend.connectors.google import GoogleAPI
+        from datetime import datetime, timedelta, timezone
+
+        start = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return (
+            GoogleAPI(settings.google_calendar_credentials_json)
+            .request(
+                "calendar",
+                "POST",
+                "freeBusy",
+                json={
+                    "timeMin": start.isoformat(),
+                    "timeMax": (start + timedelta(days=1)).isoformat(),
+                    "items": [{"id": "primary"}],
+                },
+            )
+            .get("calendars", {})
+            .get("primary", {})
+            .get("busy", [])
+        )
 
 
 _client: CalendarClient | None = None

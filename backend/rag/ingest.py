@@ -1,67 +1,31 @@
-"""CLI to chunk and embed enterprise docs (markdown + PDF) into the vector store.
+"""Explicitly ingest sample documents into a user's workspace."""
 
-Usage:
-    python -m backend.rag.ingest
-    python -m backend.rag.ingest --path /path/to/docs
-"""
-
-from __future__ import annotations
-
-import hashlib
 from pathlib import Path
-
-from backend.rag.chunking import chunk_by_heading
-from backend.rag.store import add_documents
+from backend.auth.workspaces import resolve_workspace
+from backend.rag.documents import ingest_document
 
 DOCS_DIR = Path(__file__).parent / "sample_docs"
 
 
-def _file_hash(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-
-
-def ingest(docs_dir: Path | None = None) -> int:
-    docs_dir = docs_dir or DOCS_DIR
-    ids, texts, metadatas = [], [], []
-
-    for path in sorted(docs_dir.iterdir()):
-        if path.suffix == ".md":
-            content = path.read_text()
-            file_hash = _file_hash(path)
-            chunks = chunk_by_heading(content)
-            for i, chunk in enumerate(chunks):
-                ids.append(f"{path.stem}-{file_hash}-{i}")
-                texts.append(chunk["text"])
-                metadatas.append({"source": path.name, "chunk_hash": chunk["hash"]})
-
-        elif path.suffix == ".pdf":
-            from backend.rag.pdf_parser import extract_text_from_pdf
-
-            file_hash = _file_hash(path)
-            pages = extract_text_from_pdf(path)
-            for page_info in pages:
-                page_chunks = chunk_by_heading(page_info["text"])
-                for i, chunk in enumerate(page_chunks):
-                    ids.append(f"{path.stem}-p{page_info['page']}-{file_hash}-{i}")
-                    texts.append(chunk["text"])
-                    metadatas.append({
-                        "source": path.name,
-                        "page": page_info["page"],
-                        "chunk_hash": chunk["hash"],
-                    })
-
-    if ids:
-        add_documents(ids, texts, metadatas)
-    return len(ids)
+def ingest(docs_dir=None, user_id=None, workspace_id=None):
+    if user_id is None:
+        raise ValueError("user_id is required for workspace-scoped ingestion")
+    workspace_id = resolve_workspace(user_id, workspace_id)
+    return sum(
+        ingest_document(user_id, workspace_id, p.name, p.read_bytes())["chunks"]
+        for p in sorted((docs_dir or DOCS_DIR).iterdir())
+        if p.suffix.lower() in {".md", ".txt", ".pdf"}
+    )
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
+    from backend.migrate import migrate
 
-    docs_path = None
-    if "--path" in sys.argv:
-        idx = sys.argv.index("--path")
-        docs_path = Path(sys.argv[idx + 1])
-
-    count = ingest(docs_path)
-    print(f"Ingested {count} chunks from {docs_path or DOCS_DIR}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--user-id", type=int, required=True)
+    parser.add_argument("--workspace-id")
+    parser.add_argument("--path", type=Path)
+    args = parser.parse_args()
+    migrate()
+    print(ingest(args.path, args.user_id, args.workspace_id))

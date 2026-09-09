@@ -25,13 +25,21 @@ export default function ToolCallViewer({ traces }: { traces: ToolTrace[] }) {
             className="w-full px-3 py-2 flex items-center justify-between hover:bg-[var(--card-hover)] transition"
           >
             <div className="flex items-center gap-2">
-              <span className={t.success ? "text-[var(--success)]" : "text-[var(--danger)]"}>
+              <span
+                className={
+                  t.success ? "text-[var(--success)]" : "text-[var(--danger)]"
+                }
+              >
                 {t.success ? "✓" : "✗"}
               </span>
               <code className="font-mono">{t.tool_name}</code>
-              <span className="text-[var(--muted)]">{t.duration_ms.toFixed(0)}ms</span>
+              <span className="text-[var(--muted)]">
+                {t.duration_ms.toFixed(0)}ms
+              </span>
             </div>
-            <span className="text-[var(--muted)]">{expanded === i ? "▾" : "▸"}</span>
+            <span className="text-[var(--muted)]">
+              {expanded === i ? "▾" : "▸"}
+            </span>
           </button>
           {expanded === i && (
             <div className="px-3 py-2 border-t border-[var(--border)] space-y-2">

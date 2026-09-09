@@ -56,11 +56,30 @@ class GmailClient:
         if self._use_mock:
             query_lower = query.lower()
             results = [
-                e for e in MOCK_EMAILS
-                if query_lower in e["subject"].lower() or query_lower in e["snippet"].lower()
+                e
+                for e in MOCK_EMAILS
+                if query_lower in e["subject"].lower()
+                or query_lower in e["snippet"].lower()
             ]
             return results[:max_results] if results else MOCK_EMAILS[:max_results]
-        raise NotImplementedError("Real Gmail API not yet configured")
+        from backend.connectors.google import GoogleAPI
+
+        api = GoogleAPI(settings.gmail_credentials_json)
+        result = api.request(
+            "gmail",
+            "GET",
+            "messages",
+            params={"q": query, "maxResults": max(1, min(max_results, 20))},
+        )
+        return [
+            api.request(
+                "gmail",
+                "GET",
+                "messages/" + message["id"],
+                params={"format": "metadata"},
+            )
+            for message in result.get("messages", [])
+        ]
 
     def get_thread(self, thread_id: str) -> dict:
         if self._use_mock:
@@ -68,12 +87,46 @@ class GmailClient:
                 if email["thread_id"] == thread_id:
                     return {"thread_id": thread_id, "messages": [email]}
             return {"thread_id": thread_id, "messages": []}
-        raise NotImplementedError("Real Gmail API not yet configured")
+        from backend.connectors.google import GoogleAPI
+        from urllib.parse import quote
+
+        return GoogleAPI(settings.gmail_credentials_json).request(
+            "gmail", "GET", "threads/" + quote(thread_id, safe="")
+        )
 
     def draft_reply(self, thread_id: str, body: str) -> dict:
         if self._use_mock:
-            return {"status": "draft_created", "thread_id": thread_id, "body_preview": body[:100]}
-        raise NotImplementedError("Real Gmail API not yet configured")
+            return {
+                "status": "draft_created",
+                "thread_id": thread_id,
+                "body_preview": body[:100],
+            }
+        from backend.connectors.google import GoogleAPI
+        from email.message import EmailMessage
+        import base64
+
+        thread = self.get_thread(thread_id)
+        messages = thread.get("messages", [])
+        if not messages:
+            raise ValueError("Thread not found")
+        headers = {
+            h["name"].lower(): h["value"]
+            for h in messages[-1].get("payload", {}).get("headers", [])
+        }
+        msg = EmailMessage()
+        msg["To"] = headers.get("reply-to", headers.get("from", ""))
+        msg["Subject"] = "Re: " + headers.get("subject", "")
+        if headers.get("message-id"):
+            msg["In-Reply-To"] = headers["message-id"]
+            msg["References"] = headers["message-id"]
+        msg.set_content(body)
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        return GoogleAPI(settings.gmail_credentials_json).request(
+            "gmail",
+            "POST",
+            "drafts",
+            json={"message": {"threadId": thread_id, "raw": raw}},
+        )
 
 
 _client: GmailClient | None = None

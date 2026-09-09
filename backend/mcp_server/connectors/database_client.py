@@ -52,28 +52,55 @@ class DatabaseClient:
             _init_demo_db()
 
     def execute_query(self, sql: str) -> dict:
-        sql_upper = sql.strip().upper()
-        if not sql_upper.startswith("SELECT"):
-            return {"error": "Only SELECT queries are allowed (read-only)"}
+        import sqlglot
+        from sqlglot import exp
+
+        try:
+            statements = sqlglot.parse(
+                sql, read="sqlite" if self._use_demo else "postgres"
+            )
+            if len(statements) != 1 or not isinstance(statements[0], exp.Select):
+                return {"error": "Only one SELECT query is allowed"}
+            forbidden = (
+                exp.Insert,
+                exp.Update,
+                exp.Delete,
+                exp.Drop,
+                exp.Create,
+                exp.Into,
+            )
+            if any(isinstance(n, forbidden) for n in statements[0].walk()):
+                return {"error": "Only read-only SELECT queries are allowed"}
+        except Exception:
+            return {"error": "Invalid SELECT query"}
 
         try:
             if self._use_demo:
-                conn = sqlite3.connect(DEMO_DB)
+                conn = sqlite3.connect(f"file:{DEMO_DB}?mode=ro", uri=True)
+                conn.execute("PRAGMA query_only = ON")
+                import time
+
+                deadline = time.monotonic() + 5
+                conn.set_progress_handler(
+                    lambda: int(time.monotonic() > deadline), 1000
+                )
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute(sql)
                 columns = [desc[0] for desc in cursor.description]
-                rows = [dict(row) for row in cursor.fetchall()[:100]]
+                rows = [dict(row) for row in cursor.fetchmany(100)]
                 conn.close()
                 return {"columns": columns, "rows": rows, "row_count": len(rows)}
             else:
                 import psycopg2
                 import psycopg2.extras
 
-                conn = psycopg2.connect(settings.database_url)
+                conn = psycopg2.connect(settings.tool_database_url, connect_timeout=5)
+                conn.set_session(readonly=True, autocommit=False)
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor.execute("SET LOCAL statement_timeout = '5000ms'")
                 cursor.execute(sql)
                 columns = [desc[0] for desc in cursor.description]
-                rows = [dict(row) for row in cursor.fetchall()[:100]]
+                rows = [dict(row) for row in cursor.fetchmany(100)]
                 cursor.close()
                 conn.close()
                 return {"columns": columns, "rows": rows, "row_count": len(rows)}
@@ -83,14 +110,21 @@ class DatabaseClient:
     def describe_schema(self) -> list[dict]:
         if self._use_demo:
             conn = sqlite3.connect(DEMO_DB)
-            tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
             schema = []
             for (table_name,) in tables:
                 cols = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-                schema.append({
-                    "table": table_name,
-                    "columns": [{"name": c[1], "type": c[2], "nullable": not c[3]} for c in cols],
-                })
+                schema.append(
+                    {
+                        "table": table_name,
+                        "columns": [
+                            {"name": c[1], "type": c[2], "nullable": not c[3]}
+                            for c in cols
+                        ],
+                    }
+                )
             conn.close()
             return schema
         return []

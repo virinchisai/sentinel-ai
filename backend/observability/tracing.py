@@ -27,11 +27,13 @@ class TracingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         elapsed = time.monotonic() - start
 
-        endpoint = request.url.path
+        endpoint = getattr(request.scope.get("route"), "path", "unmatched")
         REQUEST_COUNT.labels(
             method=request.method, endpoint=endpoint, status=response.status_code
         ).inc()
-        REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(elapsed)
+        REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(
+            elapsed
+        )
 
         response.headers["x-request-id"] = rid
         return response

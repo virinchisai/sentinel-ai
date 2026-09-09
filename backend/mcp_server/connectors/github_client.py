@@ -8,7 +8,10 @@ BASE_URL = "https://api.github.com"
 
 
 def _headers() -> dict:
-    headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
     if settings.github_token:
         headers["Authorization"] = f"Bearer {settings.github_token}"
     return headers
@@ -32,6 +35,9 @@ class GitHubClient:
                 "body": (item.get("body") or "")[:300],
             }
             for item in items
+            if item.get("html_url", "")
+            .lower()
+            .startswith(f"https://github.com/{repo.lower()}/")
         ]
 
     def search_code(self, repo: str, query: str, limit: int = 5) -> list[dict]:
@@ -42,10 +48,15 @@ class GitHubClient:
         return [
             {"name": item["name"], "path": item["path"], "url": item["html_url"]}
             for item in items
+            if item.get("html_url", "")
+            .lower()
+            .startswith(f"https://github.com/{repo.lower()}/")
         ]
 
     def create_issue(self, repo: str, title: str, body: str = "") -> dict:
-        resp = self._client.post(f"/repos/{repo}/issues", json={"title": title, "body": body})
+        resp = self._client.post(
+            f"/repos/{repo}/issues", json={"title": title, "body": body}
+        )
         resp.raise_for_status()
         data = resp.json()
         return {"number": data["number"], "url": data["html_url"]}

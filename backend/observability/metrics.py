@@ -3,7 +3,7 @@
 from prometheus_client import Counter, Histogram, Info
 
 APP_INFO = Info("sentinel_ai", "SentinelAI application info")
-APP_INFO.info({"version": "0.1.0", "name": "sentinel-ai"})
+APP_INFO.info({"version": "2.0.0", "name": "sentinel-ai"})
 
 REQUEST_COUNT = Counter(
     "sentinel_http_requests_total",

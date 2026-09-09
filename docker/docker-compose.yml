@@ -1,14 +1,59 @@
+name: sentinelai-v2
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U sentinel -d sentinel"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   api:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile
+      dockerfile: docker/Dockerfile.backend
     ports:
-      - "8000:8000"
-    env_file:
-      - ../.env
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql://sentinel:${POSTGRES_PASSWORD}@db:5432/sentinel
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      ENVIRONMENT: production
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      GITHUB_DEFAULT_REPO: ${GITHUB_DEFAULT_REPO:-virinchisai/sentinel-ai}
+      GITHUB_ALLOWED_REPOS: ${GITHUB_ALLOWED_REPOS:-virinchisai/sentinel-ai}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - chroma-data:/app/.chroma
-
+      - app-data:/app/data
+      - workspace-data:/app/workspace
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
-  chroma-data:
+  postgres-data:
+  app-data:
+  workspace-data:

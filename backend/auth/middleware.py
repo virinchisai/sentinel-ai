@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.auth.jwt import verify_token
-from backend.auth.models import Role, User, get_db
+from backend.auth.models import User, get_db
 from backend.auth.rbac import has_permission
 
 security = HTTPBearer()
@@ -16,17 +16,18 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db=Depends(get_db),
 ) -> User:
-    # avoid circular import: routes imports middleware
-    from backend.auth.routes import is_revoked
-
-    if is_revoked(credentials.credentials):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
     payload = verify_token(credentials.credentials)
     if payload is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
     user = db.query(User).filter(User.username == payload.get("sub")).first()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+    if payload.get("ver", -1) != user.token_version:
+        raise HTTPException(status_code=401, detail="Session revoked")
     return user
 
 
