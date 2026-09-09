@@ -509,6 +509,6 @@ application; configure the database, secrets, and Ollama connection as described
 address. ARM hosts need AMD64 emulation or a local native build.
 
 The **Publish container packages** workflow runs for future published stable
-releases and can be run manually with an existing release tag. Newly created GHCR
-packages default to private; public distribution requires public package visibility.
+releases and can be run manually with an existing release tag. Both SentinelAI
+packages are public and can be downloaded without a GitHub login.
 See [GitHub's container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
