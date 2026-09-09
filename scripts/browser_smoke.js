@@ -1,4 +1,4 @@
-async (page) => {
+async function browserSmoke(page) {
   const username = 'browser' + Date.now();
   await page.goto('http://localhost:3000/register');
   await page.getByRole('textbox', { name: 'Username', exact: true }).fill(username);

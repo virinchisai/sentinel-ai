@@ -202,6 +202,7 @@ async def execute(client, actor, name, arguments):
     authorize(actor, name, arguments)
     started = time.monotonic()
     sources = []
+    output = ""
     try:
         if name == "query_knowledge_base":
             from backend.rag.documents import retrieve

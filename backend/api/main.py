@@ -5,7 +5,7 @@ Run locally:
 """
 
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from backend.config import settings
 from backend.auth.oidc import router as oidc_router
 from backend.api.routes_connectors import router as connectors_router
@@ -46,10 +46,8 @@ async def lifespan(app):
         yield
     finally:
         task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])

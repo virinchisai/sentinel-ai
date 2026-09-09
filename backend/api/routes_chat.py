@@ -82,6 +82,7 @@ async def chat(req: ChatRequest, user=Depends(require_permission("chat"))):
     async for event in run_events(user, req):
         if event["type"] == "response":
             return event
+    raise HTTPException(502, "Agent ended without a response")
 
 
 @router.post("/chat/stream")

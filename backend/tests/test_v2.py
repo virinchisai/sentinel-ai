@@ -95,7 +95,8 @@ def test_workspace_isolation_replacement_delete(client, user, actor):
         h2 = headers(other)
     assert client.get("/documents/" + first["id"], headers=h2).status_code == 403
     assert client.get("/documents/list", headers=h2).json()["total_chunks"] == 0
-    assert client.delete("/documents/" + first["id"], headers=h).status_code == 200
+    deleted = client.delete("/documents/" + first["id"], headers=h)
+    assert deleted.status_code == 200
     assert not retrieve("beta", actor.workspace_id)
 
 
