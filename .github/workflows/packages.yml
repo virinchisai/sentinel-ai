@@ -1,0 +1,66 @@
+name: Publish container packages
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published release tag to package
+        required: true
+        default: v2.0.0
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: packages-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      COMPONENT: ${{ matrix.component }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Validate published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease --jq 'if .isDraft or .isPrerelease then error("Stable published release required") else "Release verified" end'
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+      - name: Build release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-$COMPONENT"
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
+            --label "org.opencontainers.image.version=$RELEASE_TAG" \
+            --label "org.opencontainers.image.licenses=MIT" \
+            --label "org.opencontainers.image.description=SentinelAI $COMPONENT" \
+            -f "docker/Dockerfile.$COMPONENT" -t "$IMAGE:$RELEASE_TAG" .
+      - name: Publish and verify registry manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-$COMPONENT"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$RELEASE_TAG"
+          docker manifest inspect "$IMAGE:$RELEASE_TAG" > /dev/null
+          LATEST_RELEASE=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [[ "$RELEASE_TAG" == "$LATEST_RELEASE" ]]; then
+            docker tag "$IMAGE:$RELEASE_TAG" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
+          printf '### Published %s\n\n`docker pull %s:%s`\n' "$COMPONENT" "$IMAGE" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+      - name: Clear registry credentials
+        if: always()
+        run: docker logout ghcr.io

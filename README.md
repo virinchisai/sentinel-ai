@@ -491,3 +491,24 @@ flowchart LR
 ### License
 
 MIT for SentinelAI. Dependencies and model weights retain their own licenses.
+
+### Version 2.0 container packages
+
+The release packaging workflow builds Linux AMD64 images from the published release
+tag and links them to this repository in GitHub Packages:
+
+```bash
+docker pull ghcr.io/virinchisai/sentinel-ai-backend:v2.0.0
+docker pull ghcr.io/virinchisai/sentinel-ai-frontend:v2.0.0
+```
+
+The newest stable release also receives the `latest` tag. These images contain the
+application; configure the database, secrets, and Ollama connection as described in
+[operations](docs/operations.md). The prebuilt frontend targets
+`http://localhost:8000`; build locally with `NEXT_PUBLIC_API_URL` for another API
+address. ARM hosts need AMD64 emulation or a local native build.
+
+The **Publish container packages** workflow runs for future published stable
+releases and can be run manually with an existing release tag. Newly created GHCR
+packages default to private; public distribution requires public package visibility.
+See [GitHub's container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
