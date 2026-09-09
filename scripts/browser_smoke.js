@@ -4,8 +4,11 @@ async function browserSmoke(page) {
   await page.getByRole('textbox', { name: 'Username', exact: true }).fill(username);
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(username + '@example.com');
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill('BrowserTest2048!');
+  const sessionsLoaded = page.waitForResponse(response => response.url().includes('/chat/sessions') && response.request().method() === 'GET');
   await page.getByRole('button', { name: 'Create Account', exact: true }).click();
   await page.waitForURL('**/chat');
+  const sessionsResponse = await sessionsLoaded;
+  if (sessionsResponse.status() !== 200) throw new Error('Saved sessions failed: ' + sessionsResponse.status());
   await page.getByRole('link', { name: '📄 Documents' }).click();
   await page.getByLabel('Upload document').setInputFiles('backend/rag/sample_docs/incident_response.md');
   await page.getByRole('status').filter({hasText:'version 1'}).waitFor({timeout:30000});

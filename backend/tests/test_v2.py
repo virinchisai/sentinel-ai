@@ -215,3 +215,28 @@ def test_durable_ingestion_job(actor):
         row = db.get(DocumentJob, job["job_id"])
         assert row.status == "completed" and row.payload == ""
     assert retrieve("durable", actor.workspace_id)
+
+
+def test_concurrent_personal_workspace_creation(user, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from sqlalchemy.orm import Session
+    from backend.auth.models import Workspace, Membership
+    from backend.auth.workspaces import resolve_workspace
+
+    barrier = Barrier(2)
+    original_get = Session.get
+
+    def synchronized_get(self, entity, ident, *args, **kwargs):
+        result = original_get(self, entity, ident, *args, **kwargs)
+        if entity is Workspace and result is None:
+            barrier.wait(timeout=10)
+        return result
+
+    monkeypatch.setattr(Session, "get", synchronized_get)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(resolve_workspace, [user.id, user.id]))
+    assert results[0] == results[1]
+    with get_session_factory()() as db:
+        assert db.query(Workspace).count() == 1
+        assert db.get(Membership, (results[0], user.id)) is not None

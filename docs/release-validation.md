@@ -4,7 +4,7 @@ Validated locally on 2026-09-09:
 
 | Check | Result |
 |---|---|
-| Backend regression suite | 40 tests passed |
+| Backend regression suite | 41 tests passed |
 | Frontend lint | Passed, no warnings |
 | Next.js production build | Passed |
 | Python dependency audit | No known vulnerabilities in requirements.lock |

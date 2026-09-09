@@ -2,6 +2,7 @@
 
 import uuid
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from backend.auth.models import Workspace, Membership, get_session_factory
 
 
@@ -17,9 +18,16 @@ def resolve_workspace(user_id, workspace_id=None):
                         id=workspace_id, name="Personal workspace", owner_id=user_id
                     )
                 )
-                db.flush()
-                db.add(Membership(workspace_id=workspace_id, user_id=user_id))
-                db.commit()
+                try:
+                    db.flush()
+                    db.add(Membership(workspace_id=workspace_id, user_id=user_id))
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+                    # Another request may have created this personal workspace.
+                    # Accept only a committed workspace with this user's membership.
+                    if not db.get(Membership, (workspace_id, user_id)):
+                        raise
         if not db.get(Membership, (workspace_id, user_id)):
             raise HTTPException(status_code=403, detail="Workspace access denied")
         return workspace_id
