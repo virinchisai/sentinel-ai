@@ -403,7 +403,7 @@ least-privilege tools, durable approvals, connector credential handling,
 observability, evaluation, and reproducible delivery.
 
 <details>
-<summary><b>📋 Accurate resume bullet</b></summary>
+<summary><b>📋 Accurate bullet</b></summary>
 
 > Built SentinelAI v2.0, a local-first MCP agent workspace integrating GitHub,
 > Gmail, Calendar, read-only SQL, restricted filesystem tools, and workspace-scoped
